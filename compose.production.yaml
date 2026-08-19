@@ -1,7 +1,7 @@
 # 本番環境用 Docker Compose 設定
 # 配置先: /opt/redash/compose.yaml
 x-redash-service: &redash-service
-  image: minoruito/redash:26.3.0-custom.1
+  image: terariamito/redash:26.3.0-custom.1
   depends_on:
     - postgres
     - redis
