@@ -65,7 +65,18 @@ def evaluate_insight_definition(definition):
         logger.info("Insight definition %d has no query result.", definition.id)
         return 0
 
-    data = query.latest_query_data.data or {}
+    query_result = query.latest_query_data
+    query_result_id = query_result.id
+
+    if models.Insight.already_evaluated(definition.id, query_result_id):
+        logger.info(
+            "Insight definition %d already evaluated for query_result %d; skip.",
+            definition.id,
+            query_result_id,
+        )
+        return 0
+
+    data = query_result.data or {}
     rows = data.get("rows") or []
     columns = [col.get("name") for col in (data.get("columns") or []) if col.get("name")]
 
@@ -140,6 +151,7 @@ def evaluate_insight_definition(definition):
         insight = models.Insight(
             insight_definition=definition,
             query_rel=query,
+            query_result_id=query_result_id,
             execute_at=execute_at,
             dimension_column_name=dimension_column,
             category_column_name=category_column,
@@ -151,7 +163,12 @@ def evaluate_insight_definition(definition):
 
     if created:
         models.db.session.commit()
-        logger.info("Created %d insight(s) for definition %d.", created, definition.id)
+        logger.info(
+            "Created %d insight(s) for definition %d query_result %d.",
+            created,
+            definition.id,
+            query_result_id,
+        )
 
     return created
 

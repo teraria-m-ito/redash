@@ -211,6 +211,7 @@ def serialize_insight_result(insight):
         "id": insight.id,
         "insight_definition_id": insight.insight_definition_id,
         "query_id": insight.query_id,
+        "query_result_id": insight.query_result_id,
         "execute_at": insight.execute_at,
         "dimension_column_name": insight.dimension_column_name,
         "category_column_name": insight.category_column_name,

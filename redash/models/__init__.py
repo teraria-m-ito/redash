@@ -1159,6 +1159,7 @@ class InsightDefinition(TimestampMixin, BelongsToOrgMixin, db.Model):
     "id",
     "insight_definition_id",
     "query_id",
+    "query_result_id",
     "execute_at",
     "dimension_column_name",
     "category_column_name",
@@ -1172,6 +1173,8 @@ class Insight(TimestampMixin, BelongsToOrgMixin, db.Model):
     )
     query_id = Column(key_type("Query"), db.ForeignKey("queries.id"))
     query_rel = db.relationship(Query, backref=backref("insights", cascade="all"))
+    query_result_id = Column(key_type("QueryResult"), db.ForeignKey("query_results.id"), nullable=True)
+    query_result = db.relationship(QueryResult, backref=backref("insights"))
     execute_at = Column(db.DateTime(True))
     dimension_column_name = Column(db.String(255))
     category_column_name = Column(db.String(255))
@@ -1183,6 +1186,7 @@ class Insight(TimestampMixin, BelongsToOrgMixin, db.Model):
         db.Index("ix_insights_query_id", "query_id"),
         db.Index("ix_insights_execute_at", "execute_at"),
         db.Index("ix_insights_insight_definition_id", "insight_definition_id"),
+        db.Index("ix_insights_definition_query_result", "insight_definition_id", "query_result_id"),
     )
 
     @classmethod
@@ -1197,6 +1201,18 @@ class Insight(TimestampMixin, BelongsToOrgMixin, db.Model):
     @classmethod
     def get_by_id_and_org(cls, object_id, org):
         return super(Insight, cls).get_by_id_and_org(object_id, org, Query)
+
+    @classmethod
+    def already_evaluated(cls, insight_definition_id, query_result_id):
+        if not insight_definition_id or not query_result_id:
+            return False
+        return (
+            cls.query.filter(
+                cls.insight_definition_id == insight_definition_id,
+                cls.query_result_id == query_result_id,
+            ).first()
+            is not None
+        )
 
     @property
     def groups(self):
