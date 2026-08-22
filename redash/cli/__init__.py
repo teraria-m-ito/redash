@@ -10,6 +10,7 @@ from redash.cli import (
     data_sources,
     database,
     groups,
+    insights,
     organization,
     queries,
     rq,
@@ -41,6 +42,7 @@ manager.add_command(groups.manager, "groups")
 manager.add_command(data_sources.manager, "ds")
 manager.add_command(organization.manager, "org")
 manager.add_command(queries.manager, "queries")
+manager.add_command(insights.manager, "insights")
 manager.add_command(rq.manager, "rq")
 manager.add_command(run_command, "runserver")
 

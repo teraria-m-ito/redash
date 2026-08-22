@@ -499,6 +499,9 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
         for a in self.alerts:
             db.session.delete(a)
 
+        for insight in self.insights:
+            db.session.delete(insight)
+
         if user:
             self.record_changes(user)
 
@@ -1100,6 +1103,48 @@ class Alert(TimestampMixin, BelongsToOrgMixin, db.Model):
     @property
     def muted(self):
         return self.options.get("muted", False)
+
+
+@generic_repr(
+    "id",
+    "query_id",
+    "execute_at",
+    "dimension_column_name",
+    "category_column_name",
+    "message_to",
+)
+class Insight(TimestampMixin, BelongsToOrgMixin, db.Model):
+    id = primary_key("Insight")
+    query_id = Column(key_type("Query"), db.ForeignKey("queries.id"))
+    query_rel = db.relationship(Query, backref=backref("insights", cascade="all"))
+    execute_at = Column(db.DateTime(True))
+    dimension_column_name = Column(db.String(255))
+    category_column_name = Column(db.String(255))
+    message_to = Column(db.String(255))
+    message = Column(db.Text)
+
+    __tablename__ = "insights"
+    __table_args__ = (
+        db.Index("ix_insights_query_id", "query_id"),
+        db.Index("ix_insights_execute_at", "execute_at"),
+    )
+
+    @classmethod
+    def all(cls, group_ids):
+        return (
+            cls.query.options(joinedload(Insight.query_rel))
+            .join(Query)
+            .join(DataSourceGroup, DataSourceGroup.data_source_id == Query.data_source_id)
+            .filter(DataSourceGroup.group_id.in_(group_ids))
+        )
+
+    @classmethod
+    def get_by_id_and_org(cls, object_id, org):
+        return super(Insight, cls).get_by_id_and_org(object_id, org, Query)
+
+    @property
+    def groups(self):
+        return self.query_rel.groups
 
 
 def generate_slug(ctx):
