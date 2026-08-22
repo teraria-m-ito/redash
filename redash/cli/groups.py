@@ -24,7 +24,7 @@ manager = AppGroup(help="Groups management commands.")
     " 'create_query', 'edit_dashboard', 'edit_query', "
     "'view_query', 'view_source', 'execute_query', 'list_users',"
     " 'schedule_query', 'list_dashboards', 'list_alerts',"
-    " 'list_data_sources') (leave blank for default).",
+    " 'list_insights', 'list_data_sources') (leave blank for default).",
 )
 def create(name, permissions=None, organization="default"):
     print("Creating group (%s)..." % (name))
@@ -52,7 +52,7 @@ def create(name, permissions=None, organization="default"):
     " 'create_query', 'edit_dashboard', 'edit_query',"
     " 'view_query', 'view_source', 'execute_query', 'list_users',"
     " 'schedule_query', 'list_dashboards', 'list_alerts',"
-    " 'list_data_sources') (leave blank for default).",
+    " 'list_insights', 'list_data_sources') (leave blank for default).",
 )
 def change_permissions(group_id, permissions=None):
     print("Change permissions of group %s ..." % group_id)

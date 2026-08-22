@@ -2,10 +2,20 @@ import json
 import logging
 import re
 
-import requests
 from flask import request
 from flask_restful import abort
 
+from redash.ai_client import (
+    AiApiKind,
+    AiChatError,
+    AiSettingKey,
+    MessageRole,
+    assistant_content_from_response,
+    call_ai_chat,
+    chat_completions_url,
+    get_org_ai_settings,
+    resolve_ai_endpoint,
+)
 from redash.handlers.base import BaseResource, get_object_or_404
 from redash.models import DataSource
 from redash.permissions import require_access, require_permission, view_only
@@ -15,24 +25,6 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_MAX_CHARS = 80000
 
-
-class AiSettingKey:
-    API_URL = "ai_api_url"
-    API_KEY = "ai_api_key"
-    MODEL = "ai_model"
-
-
-class MessageRole:
-    SYSTEM = "system"
-    USER = "user"
-    ASSISTANT = "assistant"
-
-
-class AiApiKind:
-    OPENAI = "openai"
-    OLLAMA = "ollama"
-
-
 SYSTEM_PROMPT = """あなたは指定データソースのスキーマだけを使ってクエリを書くアシスタントです。
 厳守事項:
 - 与えられたスキーマに存在するテーブル名とカラム名だけを使う
@@ -41,35 +33,6 @@ SYSTEM_PROMPT = """あなたは指定データソースのスキーマだけを�
 - スキーマが空、または該当テーブルが無い場合は query を空文字にし、message に理由を日本語で書く
 - 回答は次のJSONのみ。前後に文章を付けない
 {"query": "クエリ本文", "message": "日本語の短い説明"}"""
-
-
-def resolve_ai_endpoint(api_url):
-    url = (api_url or "").strip().rstrip("/")
-    if url.endswith("/api/chat") or url.endswith("/api"):
-        if not url.endswith("/api/chat"):
-            url = "{}/chat".format(url)
-        return url, AiApiKind.OLLAMA
-    if url.endswith("/chat/completions"):
-        return url, AiApiKind.OPENAI
-    if url.endswith("/v1"):
-        return "{}/chat/completions".format(url), AiApiKind.OPENAI
-    return "{}/v1/chat/completions".format(url), AiApiKind.OPENAI
-
-
-def chat_completions_url(api_url):
-    url, _kind = resolve_ai_endpoint(api_url)
-    return url
-
-
-def assistant_content_from_response(payload):
-    if not isinstance(payload, dict):
-        raise TypeError("payload is not an object")
-    if payload.get("choices"):
-        return payload["choices"][0]["message"]["content"]
-    message = payload.get("message")
-    if isinstance(message, dict) and "content" in message:
-        return message.get("content")
-    raise KeyError("content")
 
 
 def extract_query_payload(content):
@@ -169,9 +132,7 @@ class AiGenerateQueryResource(BaseResource):
             abort(400, message="要求を入力してください。")
 
         org = self.current_org
-        api_url = (org.get_setting(AiSettingKey.API_URL, raise_on_missing=False) or "").strip()
-        api_key = (org.get_setting(AiSettingKey.API_KEY, raise_on_missing=False) or "").strip()
-        model = (org.get_setting(AiSettingKey.MODEL, raise_on_missing=False) or "").strip()
+        api_url, api_key, model = get_org_ai_settings(org)
 
         if not api_url or not model:
             abort(400, message="AI設定が未設定です。設定の「AI Setting」タブで接続情報を保存してください。")
@@ -217,36 +178,10 @@ class AiGenerateQueryResource(BaseResource):
                 messages.append({"role": role, "content": content})
         messages.append({"role": MessageRole.USER, "content": prompt})
 
-        endpoint, api_kind = resolve_ai_endpoint(api_url)
-        headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = "Bearer {}".format(api_key)
-
-        if api_kind == AiApiKind.OLLAMA:
-            body = {
-                "model": model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": 0.1},
-            }
-        else:
-            body = {"model": model, "messages": messages, "temperature": 0.1}
-
         try:
-            response = requests.post(endpoint, headers=headers, json=body, timeout=180)
-        except requests.RequestException:
-            logger.exception("AI API request failed")
-            abort(502, message="AIサービスに接続できませんでした。")
-
-        if response.status_code >= 400:
-            logger.warning("AI API error status=%s body=%s", response.status_code, response.text[:500])
-            abort(502, message="AIサービスがエラーを返しました。（HTTP {}）".format(response.status_code))
-
-        try:
-            payload = response.json()
-            content = assistant_content_from_response(payload)
-        except (ValueError, KeyError, IndexError, TypeError):
-            abort(502, message="AIサービスの応答を解釈できませんでした。")
+            content = call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180)
+        except AiChatError as error:
+            abort(error.status_code, message=error.message)
 
         query_text, message = extract_query_payload(content)
         if not query_text and not message:

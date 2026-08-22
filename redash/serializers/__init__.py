@@ -206,6 +206,48 @@ def serialize_alert(alert, full=True):
     return d
 
 
+def serialize_insight_result(insight):
+    return {
+        "id": insight.id,
+        "insight_definition_id": insight.insight_definition_id,
+        "query_id": insight.query_id,
+        "execute_at": insight.execute_at,
+        "dimension_column_name": insight.dimension_column_name,
+        "category_column_name": insight.category_column_name,
+        "message_to": insight.message_to,
+        "message": insight.message,
+        "created_at": insight.created_at,
+        "updated_at": insight.updated_at,
+    }
+
+
+def serialize_insight_definition(insight, full=True, with_results=False):
+    d = {
+        "id": insight.id,
+        "name": insight.name,
+        "options": insight.options or {},
+        "updated_at": insight.updated_at,
+        "created_at": insight.created_at,
+    }
+
+    if full:
+        d["query"] = serialize_query(insight.query_rel)
+        d["user"] = insight.user.to_dict()
+    else:
+        d["query_id"] = insight.query_id
+        d["user_id"] = insight.user_id
+
+    if with_results:
+        results = (
+            models.Insight.query.filter(models.Insight.insight_definition_id == insight.id)
+            .order_by(models.Insight.execute_at.desc())
+            .limit(50)
+        )
+        d["results"] = [serialize_insight_result(item) for item in results]
+
+    return d
+
+
 def serialize_dashboard(obj, with_widgets=False, user=None, with_favorite_state=True):
     layout = obj.layout
 

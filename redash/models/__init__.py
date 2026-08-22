@@ -499,6 +499,9 @@ class Query(ChangeTrackingMixin, TimestampMixin, BelongsToOrgMixin, db.Model):
         for a in self.alerts:
             db.session.delete(a)
 
+        for definition in self.insight_definitions:
+            db.session.delete(definition)
+
         for insight in self.insights:
             db.session.delete(insight)
 
@@ -1105,8 +1108,56 @@ class Alert(TimestampMixin, BelongsToOrgMixin, db.Model):
         return self.options.get("muted", False)
 
 
+@generic_repr("id", "name", "query_id", "user_id")
+class InsightDefinition(TimestampMixin, BelongsToOrgMixin, db.Model):
+    class OptionKey:
+        DIMENSION_COLUMN = "dimension_column"
+        CATEGORY_COLUMN = "category_column"
+        MESSAGE_TO_COLUMN = "message_to_column"
+
+    id = primary_key("InsightDefinition")
+    name = Column(db.String(255))
+    query_id = Column(key_type("Query"), db.ForeignKey("queries.id"))
+    query_rel = db.relationship(Query, backref=backref("insight_definitions", cascade="all"))
+    user_id = Column(key_type("User"), db.ForeignKey("users.id"))
+    user = db.relationship(User, backref="insight_definitions")
+    options = Column(MutableDict.as_mutable(JSONB), nullable=True)
+
+    __tablename__ = "insight_definitions"
+
+    @classmethod
+    def all(cls, group_ids):
+        return (
+            cls.query.options(joinedload(InsightDefinition.user), joinedload(InsightDefinition.query_rel))
+            .join(Query)
+            .join(DataSourceGroup, DataSourceGroup.data_source_id == Query.data_source_id)
+            .filter(DataSourceGroup.group_id.in_(group_ids))
+        )
+
+    @classmethod
+    def get_by_id_and_org(cls, object_id, org):
+        return super(InsightDefinition, cls).get_by_id_and_org(object_id, org, Query)
+
+    @property
+    def groups(self):
+        return self.query_rel.groups
+
+    @property
+    def dimension_column(self):
+        return (self.options or {}).get(self.OptionKey.DIMENSION_COLUMN)
+
+    @property
+    def category_column(self):
+        return (self.options or {}).get(self.OptionKey.CATEGORY_COLUMN)
+
+    @property
+    def message_to_column(self):
+        return (self.options or {}).get(self.OptionKey.MESSAGE_TO_COLUMN)
+
+
 @generic_repr(
     "id",
+    "insight_definition_id",
     "query_id",
     "execute_at",
     "dimension_column_name",
@@ -1115,6 +1166,10 @@ class Alert(TimestampMixin, BelongsToOrgMixin, db.Model):
 )
 class Insight(TimestampMixin, BelongsToOrgMixin, db.Model):
     id = primary_key("Insight")
+    insight_definition_id = Column(key_type("InsightDefinition"), db.ForeignKey("insight_definitions.id"), nullable=True)
+    insight_definition = db.relationship(
+        InsightDefinition, backref=backref("insights", cascade="all, delete-orphan")
+    )
     query_id = Column(key_type("Query"), db.ForeignKey("queries.id"))
     query_rel = db.relationship(Query, backref=backref("insights", cascade="all"))
     execute_at = Column(db.DateTime(True))
@@ -1127,6 +1182,7 @@ class Insight(TimestampMixin, BelongsToOrgMixin, db.Model):
     __table_args__ = (
         db.Index("ix_insights_query_id", "query_id"),
         db.Index("ix_insights_execute_at", "execute_at"),
+        db.Index("ix_insights_insight_definition_id", "insight_definition_id"),
     )
 
     @classmethod

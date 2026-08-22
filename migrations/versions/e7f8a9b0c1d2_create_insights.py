@@ -19,8 +19,6 @@ depends_on = None
 def upgrade():
     op.create_table(
         "insights",
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("query_id", sa.Integer(), nullable=False),
         sa.Column("execute_at", sa.DateTime(timezone=True), nullable=False),
@@ -28,6 +26,8 @@ def upgrade():
         sa.Column("category_column_name", sa.String(length=255), nullable=False),
         sa.Column("message_to", sa.String(length=255), nullable=False),
         sa.Column("message", sa.Text(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["query_id"], ["queries.id"]),
         sa.PrimaryKeyConstraint("id"),
     )

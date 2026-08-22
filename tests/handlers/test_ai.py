@@ -66,7 +66,7 @@ class TestAiGenerateQuery(BaseTestCase):
         self.assertEqual(rv.status_code, 400)
         self.assertIn("AI Setting", rv.json["message"])
 
-    @patch("redash.handlers.ai.requests.post")
+    @patch("redash.ai_client.requests.post")
     @patch.object(DataSource, "get_cached_schema")
     def test_returns_generated_query(self, mock_schema, mock_post):
         self.factory.org.set_setting("ai_api_url", "https://api.openai.com/v1")

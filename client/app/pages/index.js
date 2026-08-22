@@ -7,6 +7,9 @@ import "./admin/SystemStatus";
 import "./alerts/AlertsList";
 import "./alert/Alert";
 
+import "./insights/InsightsList";
+import "./insight/Insight";
+
 import "./dashboards/DashboardList";
 import "./dashboards/DashboardPage";
 import "./dashboards/PublicDashboardPage";

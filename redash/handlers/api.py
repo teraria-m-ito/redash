@@ -10,6 +10,11 @@ from redash.handlers.alerts import (
     AlertSubscriptionListResource,
     AlertSubscriptionResource,
 )
+from redash.handlers.insights import (
+    InsightEvaluateResource,
+    InsightListResource,
+    InsightResource,
+)
 from redash.handlers.base import org_scoped_rule
 from redash.handlers.dashboards import (
     DashboardFavoriteListResource,
@@ -131,6 +136,10 @@ api.add_org_resource(
     endpoint="alert_subscription",
 )
 api.add_org_resource(AlertListResource, "/api/alerts", endpoint="alerts")
+
+api.add_org_resource(InsightResource, "/api/insights/<insight_id>", endpoint="insight")
+api.add_org_resource(InsightEvaluateResource, "/api/insights/<insight_id>/eval", endpoint="insight_eval")
+api.add_org_resource(InsightListResource, "/api/insights", endpoint="insights")
 
 api.add_org_resource(DashboardListResource, "/api/dashboards", endpoint="dashboards")
 api.add_org_resource(DashboardResource, "/api/dashboards/<dashboard_id>", endpoint="dashboard")

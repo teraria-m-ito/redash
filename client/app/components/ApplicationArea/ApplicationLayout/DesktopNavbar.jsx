@@ -13,6 +13,7 @@ import logoUrl from "@/assets/images/redash_icon_small.png";
 import DesktopOutlinedIcon from "@ant-design/icons/DesktopOutlined";
 import CodeOutlinedIcon from "@ant-design/icons/CodeOutlined";
 import AlertOutlinedIcon from "@ant-design/icons/AlertOutlined";
+import BulbOutlinedIcon from "@ant-design/icons/BulbOutlined";
 import PlusOutlinedIcon from "@ant-design/icons/PlusOutlined";
 import QuestionCircleOutlinedIcon from "@ant-design/icons/QuestionCircleOutlined";
 import SettingOutlinedIcon from "@ant-design/icons/SettingOutlined";
@@ -57,6 +58,7 @@ function useNavbarActiveState() {
       ),
       dataSources: includes(["DataSources.List"], currentRoute.id),
       alerts: includes(["Alerts.List", "Alerts.New", "Alerts.View", "Alerts.Edit"], currentRoute.id),
+      insights: includes(["Insights.List", "Insights.New", "Insights.View", "Insights.Edit"], currentRoute.id),
     }),
     [currentRoute.id]
   );
@@ -70,6 +72,7 @@ export default function DesktopNavbar() {
   const canCreateQuery = currentUser.hasPermission("create_query");
   const canCreateDashboard = currentUser.hasPermission("create_dashboard");
   const canCreateAlert = currentUser.hasPermission("list_alerts");
+  const canCreateInsight = currentUser.hasPermission("list_insights");
 
   return (
     <nav className="desktop-navbar">
@@ -106,10 +109,18 @@ export default function DesktopNavbar() {
             </Link>
           </Menu.Item>
         )}
+        {currentUser.hasPermission("list_insights") && (
+          <Menu.Item key="insights" className={activeState.insights ? "navbar-active-item" : null}>
+            <Link href="insights">
+              <BulbOutlinedIcon aria-label="Insights navigation button" />
+              <span className="desktop-navbar-label">Insights</span>
+            </Link>
+          </Menu.Item>
+        )}
       </NavbarSection>
 
       <NavbarSection className="desktop-navbar-spacer">
-        {(canCreateQuery || canCreateDashboard || canCreateAlert) && (
+        {(canCreateQuery || canCreateDashboard || canCreateAlert || canCreateInsight) && (
           <Menu.SubMenu
             key="create"
             popupClassName="desktop-navbar-submenu"
@@ -139,6 +150,13 @@ export default function DesktopNavbar() {
               <Menu.Item key="new-alert">
                 <Link data-test="CreateAlertMenuItem" href="alerts/new">
                   New Alert
+                </Link>
+              </Menu.Item>
+            )}
+            {canCreateInsight && (
+              <Menu.Item key="new-insight">
+                <Link data-test="CreateInsightMenuItem" href="insights/new">
+                  New Insight
                 </Link>
               </Menu.Item>
             )}

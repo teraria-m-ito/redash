@@ -256,6 +256,7 @@ class Group(db.Model, BelongsToOrgMixin):
         "schedule_query",
         "list_dashboards",
         "list_alerts",
+        "list_insights",
         "list_data_sources",
     ]
     ADMIN_PERMISSIONS = ["admin", "super_admin"]
