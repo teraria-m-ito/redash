@@ -58,6 +58,7 @@ RUN apt-get update && \
   libkrb5-dev \
   # Postgres client
   libpq-dev \
+  postgresql-client \
   # ODBC support:
   g++ unixodbc-dev \
   # for SAML

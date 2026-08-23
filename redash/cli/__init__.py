@@ -14,6 +14,7 @@ from redash.cli import (
     organization,
     queries,
     rq,
+    sample_db,
     users,
 )
 from redash.monitor import get_status
@@ -43,6 +44,7 @@ manager.add_command(data_sources.manager, "ds")
 manager.add_command(organization.manager, "org")
 manager.add_command(queries.manager, "queries")
 manager.add_command(insights.manager, "insights")
+manager.add_command(sample_db.manager, "sample_db")
 manager.add_command(rq.manager, "rq")
 manager.add_command(run_command, "runserver")
 
