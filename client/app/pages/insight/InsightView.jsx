@@ -23,7 +23,7 @@ export default class InsightView extends React.Component {
 
     const resultColumns = [
       {
-        title: "message_to",
+        title: "Insight For",
         dataIndex: "message_to",
         key: "message_to",
         width: "15%",
@@ -71,7 +71,12 @@ export default class InsightView extends React.Component {
                   <div style={{ whiteSpace: "pre-wrap" }}>{insight.analysis_perspective || "-"}</div>
                 </HorizontalFormItem>
                 <HorizontalFormItem label="Query">
-                  <Query query={query} queryResult={queryResult} />
+                  <Query
+                    query={query}
+                    queryResult={queryResult}
+                    isLoadingQueryResult={this.props.isLoadingQueryResult}
+                    queryResultError={this.props.queryResultError}
+                  />
                 </HorizontalFormItem>
                 {queryResult && options && (
                   <HorizontalFormItem label="Columns" className="alert-criteria">
@@ -101,6 +106,8 @@ export default class InsightView extends React.Component {
 InsightView.propTypes = {
   insight: PropTypes.object.isRequired, // eslint-disable-line react/forbid-prop-types
   queryResult: PropTypes.object, // eslint-disable-line react/forbid-prop-types
+  isLoadingQueryResult: PropTypes.bool,
+  queryResultError: PropTypes.string,
   canEdit: PropTypes.bool.isRequired,
   onEdit: PropTypes.func.isRequired,
   menuButton: PropTypes.node.isRequired,
@@ -108,4 +115,6 @@ InsightView.propTypes = {
 
 InsightView.defaultProps = {
   queryResult: null,
+  isLoadingQueryResult: false,
+  queryResultError: null,
 };

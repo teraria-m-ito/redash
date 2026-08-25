@@ -65,7 +65,14 @@ export default class InsightNew extends React.Component {
               </div>
             </HorizontalFormItem>
             <HorizontalFormItem label="Query">
-              <Query query={query} queryResult={queryResult} onChange={onQuerySelected} editMode />
+              <Query
+                query={query}
+                queryResult={queryResult}
+                onChange={onQuerySelected}
+                editMode
+                isLoadingQueryResult={this.props.isLoadingQueryResult}
+                queryResultError={this.props.queryResultError}
+              />
             </HorizontalFormItem>
             {queryResult && options && (
               <HorizontalFormItem label="Columns" className="alert-criteria">
@@ -98,6 +105,8 @@ export default class InsightNew extends React.Component {
 InsightNew.propTypes = {
   insight: PropTypes.object.isRequired, // eslint-disable-line react/forbid-prop-types
   queryResult: PropTypes.object, // eslint-disable-line react/forbid-prop-types
+  isLoadingQueryResult: PropTypes.bool,
+  queryResultError: PropTypes.string,
   onQuerySelected: PropTypes.func.isRequired,
   save: PropTypes.func.isRequired,
   onNameChange: PropTypes.func.isRequired,
@@ -107,4 +116,6 @@ InsightNew.propTypes = {
 
 InsightNew.defaultProps = {
   queryResult: null,
+  isLoadingQueryResult: false,
+  queryResultError: null,
 };

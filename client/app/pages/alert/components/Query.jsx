@@ -14,7 +14,7 @@ import LoadingOutlinedIcon from "@ant-design/icons/LoadingOutlined";
 
 import "./Query.less";
 
-export default function QueryFormItem({ query, queryResult, onChange, editMode }) {
+export default function QueryFormItem({ query, queryResult, onChange, editMode, isLoadingQueryResult, queryResultError }) {
   const queryHint =
     query && query.schedule ? (
       <small>
@@ -34,6 +34,10 @@ export default function QueryFormItem({ query, queryResult, onChange, editMode }
       </small>
     );
 
+  // Alerts omit isLoadingQueryResult (undefined) and keep previous loading behavior
+  const showLoading =
+    query && !queryResult && !queryResultError && (isLoadingQueryResult == null ? true : isLoadingQueryResult);
+
   return (
     <>
       {editMode ? (
@@ -47,9 +51,14 @@ export default function QueryFormItem({ query, queryResult, onChange, editMode }
         </Tooltip>
       )}
       <div className="ant-form-item-explain">{query && queryHint}</div>
-      {query && !queryResult && (
+      {showLoading && (
         <div className="m-t-30">
           <LoadingOutlinedIcon className="m-r-5" /> Loading query data
+        </div>
+      )}
+      {query && queryResultError && !queryResult && (
+        <div className="m-t-30">
+          <WarningFilledIcon className="warning-icon-danger m-r-5" /> {queryResultError}
         </div>
       )}
     </>
@@ -61,6 +70,8 @@ QueryFormItem.propTypes = {
   queryResult: PropTypes.object, // eslint-disable-line react/forbid-prop-types
   onChange: PropTypes.func,
   editMode: PropTypes.bool,
+  isLoadingQueryResult: PropTypes.bool,
+  queryResultError: PropTypes.string,
 };
 
 QueryFormItem.defaultProps = {
@@ -68,4 +79,7 @@ QueryFormItem.defaultProps = {
   queryResult: null,
   onChange: () => {},
   editMode: false,
+  // Alerts keep previous behavior: show loading whenever query is set without result
+  isLoadingQueryResult: undefined,
+  queryResultError: null,
 };

@@ -28,8 +28,8 @@ export default function ColumnMapping({ columnNames, options, onChange, editMode
     },
     {
       key: "message_to_column",
-      label: "message_to",
-      hint: "Insight recipient label such as user name",
+      label: "Insight For",
+      hint: "Who this insight is about (e.g. user name)",
     },
   ];
 

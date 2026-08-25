@@ -45,6 +45,8 @@ class Insight extends React.Component {
   state = {
     insight: null,
     queryResult: null,
+    isLoadingQueryResult: false,
+    queryResultError: null,
     canEdit: false,
     mode: null,
   };
@@ -128,32 +130,83 @@ class Insight extends React.Component {
   };
 
   onQuerySelected = query => {
+    if (!query) {
+      this.setState(({ insight }) => ({
+        insight: Object.assign(insight, { query: null }),
+        queryResult: null,
+        isLoadingQueryResult: false,
+        queryResultError: null,
+      }));
+      return;
+    }
+
     this.setState(({ insight }) => ({
       insight: Object.assign(insight, { query }),
       queryResult: null,
+      isLoadingQueryResult: true,
+      queryResultError: null,
     }));
 
-    if (query) {
-      new QueryService(query).getQueryResultPromise().then(queryResult => {
-        if (this._isMounted) {
-          this.setState({ queryResult });
-          const columns = queryResult.getColumnNames();
-          const options = { ...this.state.insight.options };
-          ["dimension_column", "category_column", "message_to_column"].forEach(key => {
-            if (key === "message_to_column") {
-              if (options[key] && !includes(columns, options[key])) {
-                options[key] = null;
-              }
-              return;
-            }
-            if (!options[key] || !includes(columns, options[key])) {
-              options[key] = head(columns);
-            }
-          });
-          this.setInsightOptions(options);
+    // Selector の簡易オブジェクトではなく、最新のクエリ定義とキャッシュ結果を取得する
+    QueryService.get({ id: query.id })
+      .then(fullQuery => {
+        if (!this._isMounted) {
+          return null;
         }
+
+        this.setState(({ insight }) => ({
+          insight: Object.assign(insight, { query: fullQuery }),
+        }));
+
+        if (!fullQuery.latest_query_data_id && !fullQuery.latest_query_data) {
+          const message = "This query has no cached results. Run the query once, then select it again.";
+          notification.warn("No cached query result", message);
+          this.setState({
+            isLoadingQueryResult: false,
+            queryResultError: message,
+          });
+          return null;
+        }
+
+        return new QueryService(fullQuery).getQueryResultPromise();
+      })
+      .then(queryResult => {
+        if (!this._isMounted || !queryResult) {
+          return;
+        }
+
+        const columns = queryResult.getColumnNames();
+        const options = { ...(this.state.insight.options || {}) };
+        ["dimension_column", "category_column", "message_to_column"].forEach(key => {
+          if (key === "message_to_column") {
+            if (options[key] && !includes(columns, options[key])) {
+              options[key] = null;
+            }
+            return;
+          }
+          if (!options[key] || !includes(columns, options[key])) {
+            options[key] = head(columns);
+          }
+        });
+
+        this.setState(({ insight }) => ({
+          queryResult,
+          isLoadingQueryResult: false,
+          queryResultError: null,
+          insight: Object.assign(insight, { options: { ...insight.options, ...options } }),
+        }));
+      })
+      .catch(error => {
+        if (!this._isMounted) {
+          return;
+        }
+        const message = (error && error.message) || "Failed to load query data.";
+        notification.error("Failed loading query data", message);
+        this.setState({
+          isLoadingQueryResult: false,
+          queryResultError: message,
+        });
       });
-    }
   };
 
   onNameChange = name => {
@@ -219,13 +272,15 @@ class Insight extends React.Component {
       return <LoadingState className="m-t-30" />;
     }
 
-    const { queryResult, mode, canEdit } = this.state;
+    const { queryResult, isLoadingQueryResult, queryResultError, mode, canEdit } = this.state;
 
     const menuButton = <MenuButton doDelete={this.delete} canEdit={canEdit} evaluate={this.evaluate} />;
 
     const commonProps = {
       insight,
       queryResult,
+      isLoadingQueryResult,
+      queryResultError,
       save: this.save,
       menuButton,
       onQuerySelected: this.onQuerySelected,

@@ -88,7 +88,14 @@ export default class InsightEdit extends React.Component {
               />
             </HorizontalFormItem>
             <HorizontalFormItem label="Query">
-              <Query query={query} queryResult={queryResult} onChange={onQuerySelected} editMode />
+              <Query
+                query={query}
+                queryResult={queryResult}
+                onChange={onQuerySelected}
+                editMode
+                isLoadingQueryResult={this.props.isLoadingQueryResult}
+                queryResultError={this.props.queryResultError}
+              />
             </HorizontalFormItem>
             {queryResult && options && (
               <HorizontalFormItem label="Columns" className="alert-criteria">
@@ -110,6 +117,8 @@ export default class InsightEdit extends React.Component {
 InsightEdit.propTypes = {
   insight: PropTypes.object.isRequired, // eslint-disable-line react/forbid-prop-types
   queryResult: PropTypes.object, // eslint-disable-line react/forbid-prop-types
+  isLoadingQueryResult: PropTypes.bool,
+  queryResultError: PropTypes.string,
   menuButton: PropTypes.node.isRequired,
   save: PropTypes.func.isRequired,
   cancel: PropTypes.func.isRequired,
@@ -121,4 +130,6 @@ InsightEdit.propTypes = {
 
 InsightEdit.defaultProps = {
   queryResult: null,
+  isLoadingQueryResult: false,
+  queryResultError: null,
 };
