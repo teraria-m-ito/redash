@@ -13,12 +13,13 @@ MAX_PAYLOAD_CHARS = 60000
 INSIGHT_SYSTEM_PROMPT = """あなたはクエリ結果から特異的な変化（インサイト）を検出するアナリストです。
 Dimension は主に時系列、Category はユーザID・商品IDなどの対象、message_to は通知・表示対象（ユーザ名など）を表します。
 
-検出の観点の例:
+ユーザーが指定した「洞察の観点」を最優先の分析方針として使う。
+観点が空の場合のみ、次の一般例を参考にする:
 - Dimension（日時など）を重ねて急激な変化があった
 - 他の Category と比較して大きな乖離が生じた
 
 厳守事項:
-- 特異的な変化がある場合のみ insights に含める。無い場合は空配列
+- 洞察の観点に沿った特異的な変化がある場合のみ insights に含める。無い場合は空配列
 - message には何が特異で、なぜそう判断したかを日本語で具体的に書く
 - message_to には結果行の message_to 列の値を使う（無い場合は Category の値）
 - 回答は次のJSONのみ。前後に文章を付けない
@@ -104,8 +105,10 @@ def evaluate_insight_definition(definition):
         return 0
 
     truncated_rows = _truncate_rows(rows)
+    perspective = (definition.resolved_analysis_perspective() or "").strip() or "(未指定。一般的な特異変化を検出してください)"
     user_prompt = (
         "Insight名: {}\n"
+        "洞察の観点:\n{}\n"
         "Dimension列: {}\n"
         "Category列: {}\n"
         "message_to列: {}\n"
@@ -113,6 +116,7 @@ def evaluate_insight_definition(definition):
         "行データ(JSON):\n{}"
     ).format(
         definition.name,
+        perspective,
         dimension_column,
         category_column,
         message_to_column or "(未設定)",

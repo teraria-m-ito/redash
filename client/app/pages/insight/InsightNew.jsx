@@ -1,8 +1,10 @@
 import React from "react";
 import PropTypes from "prop-types";
+import { trim } from "lodash";
 
 import Form from "antd/lib/form";
 import Button from "antd/lib/button";
+import Input from "antd/lib/input";
 
 import Query from "@/pages/alert/components/Query";
 import HorizontalFormItem from "@/pages/alert/components/HorizontalFormItem";
@@ -24,20 +26,44 @@ export default class InsightNew extends React.Component {
 
   render() {
     const { insight, queryResult } = this.props;
-    const { onQuerySelected, onNameChange, onColumnsChange } = this.props;
-    const { query, name, options } = insight;
+    const { onQuerySelected, onNameChange, onPerspectiveChange, onColumnsChange } = this.props;
+    const { query, name, analysis_perspective: perspective, options } = insight;
     const { saving } = this.state;
+    const hasName = !!trim(name);
+    const hasPerspective = !!trim(perspective);
+    const canCreate = hasName && hasPerspective && query && options.dimension_column && options.category_column;
 
     return (
       <>
-        <Title insight={insight} name={name} onChange={onNameChange} editMode />
+        <Title insight={insight} name={name} editMode={false} />
         <div className="bg-white tiled p-20">
           <Form className="flex-fill">
             <div className="m-b-30">
-              Start by selecting the query that you would like to analyze with AI.
+              Start by entering an Insight name and analysis perspective, then select the query and columns to analyze.
               <br />
-              Keep in mind that Insights work best with queries that have a refresh schedule.
+              Insights work best with queries that have a refresh schedule.
             </div>
+            <HorizontalFormItem label="Name" required>
+              <Input
+                value={name || ""}
+                placeholder="e.g. Detect sudden changes in sales by customer"
+                onChange={e => onNameChange(e.target.value)}
+                maxLength={255}
+              />
+            </HorizontalFormItem>
+            <HorizontalFormItem label="Analysis Perspective" required>
+              <Input.TextArea
+                value={perspective || ""}
+                placeholder={
+                  "e.g. Detect sudden changes over Dimension (time), or large deviations compared with other Categories"
+                }
+                onChange={e => onPerspectiveChange(e.target.value)}
+                autoSize={{ minRows: 3, maxRows: 8 }}
+              />
+              <div className="ant-form-item-explain m-t-5">
+                <small>Saved to the database and used as AI analysis input. Describe what to look for.</small>
+              </div>
+            </HorizontalFormItem>
             <HorizontalFormItem label="Query">
               <Query query={query} queryResult={queryResult} onChange={onQuerySelected} editMode />
             </HorizontalFormItem>
@@ -52,11 +78,7 @@ export default class InsightNew extends React.Component {
               </HorizontalFormItem>
             )}
             <HorizontalFormItem>
-              <Button
-                type="primary"
-                onClick={this.save}
-                disabled={!query || !options.dimension_column || !options.category_column}
-                className="btn-create-insight">
+              <Button type="primary" onClick={this.save} disabled={!canCreate} className="btn-create-insight">
                 {saving && (
                   <span role="status" aria-live="polite" aria-relevant="additions removals">
                     <i className="fa fa-spinner fa-pulse m-r-5" aria-hidden="true" />
@@ -79,6 +101,7 @@ InsightNew.propTypes = {
   onQuerySelected: PropTypes.func.isRequired,
   save: PropTypes.func.isRequired,
   onNameChange: PropTypes.func.isRequired,
+  onPerspectiveChange: PropTypes.func.isRequired,
   onColumnsChange: PropTypes.func.isRequired,
 };
 

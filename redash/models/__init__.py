@@ -1117,6 +1117,7 @@ class InsightDefinition(TimestampMixin, BelongsToOrgMixin, db.Model):
 
     id = primary_key("InsightDefinition")
     name = Column(db.String(255))
+    analysis_perspective = Column(db.Text, nullable=True)
     query_id = Column(key_type("Query"), db.ForeignKey("queries.id"))
     query_rel = db.relationship(Query, backref=backref("insight_definitions", cascade="all"))
     user_id = Column(key_type("User"), db.ForeignKey("users.id"))
@@ -1153,6 +1154,11 @@ class InsightDefinition(TimestampMixin, BelongsToOrgMixin, db.Model):
     @property
     def message_to_column(self):
         return (self.options or {}).get(self.OptionKey.MESSAGE_TO_COLUMN)
+
+    def resolved_analysis_perspective(self):
+        if self.analysis_perspective:
+            return self.analysis_perspective
+        return (self.options or {}).get("analysis_perspective") or ""
 
 
 @generic_repr(

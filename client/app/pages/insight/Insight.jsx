@@ -1,4 +1,4 @@
-import { head, includes, trim, template, values } from "lodash";
+import { head, includes, trim, values } from "lodash";
 import React from "react";
 import PropTypes from "prop-types";
 
@@ -23,15 +23,8 @@ const MODES = {
   EDIT: 2,
 };
 
-const defaultNameBuilder = template(
-  "<%= query.name %>: <%= options.dimension_column %> / <%= options.category_column %>"
-);
-
 export function getDefaultName(insight) {
-  if (!insight.query) {
-    return "New Insight";
-  }
-  return defaultNameBuilder(insight);
+  return trim(insight && insight.name) || "New Insight";
 }
 
 class Insight extends React.Component {
@@ -64,6 +57,8 @@ class Insight extends React.Component {
     if (mode === MODES.NEW) {
       this.setState({
         insight: {
+          name: "",
+          analysis_perspective: "",
           options: {
             dimension_column: null,
             category_column: null,
@@ -106,8 +101,20 @@ class Insight extends React.Component {
 
   save = () => {
     const { insight } = this.state;
+    const name = trim(insight.name);
+    const perspective = trim(insight.analysis_perspective || "");
 
-    insight.name = trim(insight.name) || getDefaultName(insight);
+    if (!name) {
+      notification.error("Please enter an Insight name.");
+      return Promise.reject(new Error("name required"));
+    }
+    if (!perspective) {
+      notification.error("Please enter an analysis perspective.");
+      return Promise.reject(new Error("analysis_perspective required"));
+    }
+
+    insight.name = name;
+    insight.analysis_perspective = perspective;
 
     return InsightService.save(insight)
       .then(saved => {
@@ -153,6 +160,13 @@ class Insight extends React.Component {
     const { insight } = this.state;
     this.setState({
       insight: Object.assign(insight, { name }),
+    });
+  };
+
+  onPerspectiveChange = analysis_perspective => {
+    const { insight } = this.state;
+    this.setState({
+      insight: Object.assign(insight, { analysis_perspective }),
     });
   };
 
@@ -216,6 +230,7 @@ class Insight extends React.Component {
       menuButton,
       onQuerySelected: this.onQuerySelected,
       onNameChange: this.onNameChange,
+      onPerspectiveChange: this.onPerspectiveChange,
       onColumnsChange: this.setInsightOptions,
     };
 

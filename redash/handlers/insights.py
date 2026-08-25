@@ -26,7 +26,7 @@ class InsightResource(BaseResource):
 
     def post(self, insight_id):
         req = request.get_json(True)
-        params = project(req, ("options", "name", "query_id"))
+        params = project(req, ("options", "name", "query_id", "analysis_perspective"))
         insight = get_object_or_404(models.InsightDefinition.get_by_id_and_org, insight_id, self.current_org)
         require_admin_or_owner(insight.user.id)
 
@@ -56,13 +56,14 @@ class InsightEvaluateResource(BaseResource):
 class InsightListResource(BaseResource):
     def post(self):
         req = request.get_json(True)
-        require_fields(req, ("options", "name", "query_id"))
+        require_fields(req, ("options", "name", "query_id", "analysis_perspective"))
 
         query = models.Query.get_by_id_and_org(req["query_id"], self.current_org)
         require_access(query, self.current_user, view_only)
 
         insight = models.InsightDefinition(
             name=req["name"],
+            analysis_perspective=req.get("analysis_perspective") or "",
             query_rel=query,
             user=self.current_user,
             options=req["options"],

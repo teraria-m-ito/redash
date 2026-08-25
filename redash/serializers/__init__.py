@@ -226,6 +226,7 @@ def serialize_insight_definition(insight, full=True, with_results=False):
     d = {
         "id": insight.id,
         "name": insight.name,
+        "analysis_perspective": insight.resolved_analysis_perspective(),
         "options": insight.options or {},
         "updated_at": insight.updated_at,
         "created_at": insight.created_at,

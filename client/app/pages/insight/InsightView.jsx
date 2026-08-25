@@ -67,6 +67,9 @@ export default class InsightView extends React.Component {
           <Grid.Row type="flex" gutter={16}>
             <Grid.Col span={24}>
               <Form className="flex-fill">
+                <HorizontalFormItem label="Analysis Perspective">
+                  <div style={{ whiteSpace: "pre-wrap" }}>{insight.analysis_perspective || "-"}</div>
+                </HorizontalFormItem>
                 <HorizontalFormItem label="Query">
                   <Query query={query} queryResult={queryResult} />
                 </HorizontalFormItem>

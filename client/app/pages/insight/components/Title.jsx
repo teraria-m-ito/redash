@@ -11,10 +11,10 @@ export default function Title({ insight, editMode, name, onChange, children }) {
     <div className="alert-header">
       <div className="alert-title">
         <h3>
-          {editMode && insight.query ? (
+          {editMode ? (
             <Input
               className="f-inherit"
-              placeholder={defaultName}
+              placeholder="Insight name"
               value={name}
               aria-label="Insight title"
               onChange={e => onChange(e.target.value)}

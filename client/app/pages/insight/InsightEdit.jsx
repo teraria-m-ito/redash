@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 
 import Form from "antd/lib/form";
 import Button from "antd/lib/button";
+import Input from "antd/lib/input";
 
 import Query from "@/pages/alert/components/Query";
 import HorizontalFormItem from "@/pages/alert/components/HorizontalFormItem";
@@ -40,13 +41,13 @@ export default class InsightEdit extends React.Component {
 
   render() {
     const { insight, queryResult, menuButton } = this.props;
-    const { onQuerySelected, onNameChange, onColumnsChange } = this.props;
-    const { query, name, options } = insight;
+    const { onQuerySelected, onNameChange, onPerspectiveChange, onColumnsChange } = this.props;
+    const { query, name, analysis_perspective: perspective, options } = insight;
     const { saving } = this.state;
 
     return (
       <>
-        <Title name={name} insight={insight} onChange={onNameChange} editMode>
+        <Title name={name} insight={insight}>
           <Button className="m-r-5" onClick={() => this.cancel()}>
             <i className="fa fa-times m-r-5" aria-hidden="true" />
             Cancel
@@ -68,6 +69,24 @@ export default class InsightEdit extends React.Component {
         </Title>
         <div className="bg-white tiled p-20">
           <Form className="flex-fill">
+            <HorizontalFormItem label="Name" required>
+              <Input
+                value={name || ""}
+                placeholder="e.g. Detect sudden changes in sales by customer"
+                onChange={e => onNameChange(e.target.value)}
+                maxLength={255}
+              />
+            </HorizontalFormItem>
+            <HorizontalFormItem label="Analysis Perspective" required>
+              <Input.TextArea
+                value={perspective || ""}
+                placeholder={
+                  "e.g. Detect sudden changes over Dimension (time), or large deviations compared with other Categories"
+                }
+                onChange={e => onPerspectiveChange(e.target.value)}
+                autoSize={{ minRows: 3, maxRows: 8 }}
+              />
+            </HorizontalFormItem>
             <HorizontalFormItem label="Query">
               <Query query={query} queryResult={queryResult} onChange={onQuerySelected} editMode />
             </HorizontalFormItem>
@@ -96,6 +115,7 @@ InsightEdit.propTypes = {
   cancel: PropTypes.func.isRequired,
   onQuerySelected: PropTypes.func.isRequired,
   onNameChange: PropTypes.func.isRequired,
+  onPerspectiveChange: PropTypes.func.isRequired,
   onColumnsChange: PropTypes.func.isRequired,
 };
 

@@ -19,17 +19,17 @@ export default function ColumnMapping({ columnNames, options, onChange, editMode
     {
       key: "dimension_column",
       label: "Dimension",
-      hint: "主に時系列（日時）を表す列",
+      hint: "Usually a time-series column (e.g. date/time)",
     },
     {
       key: "category_column",
       label: "Category",
-      hint: "ユーザID・商品IDなど対象を表す列",
+      hint: "Target identifier such as user ID or product ID",
     },
     {
       key: "message_to_column",
       label: "message_to",
-      hint: "Insightの対象（ユーザ名など）を表す列",
+      hint: "Insight recipient label such as user name",
     },
   ];
 
@@ -43,7 +43,7 @@ export default function ColumnMapping({ columnNames, options, onChange, editMode
               <Select
                 className="insight-column-select"
                 value={options[field.key] || undefined}
-                placeholder="列を選択"
+                placeholder="Select column"
                 onChange={value => onChange({ [field.key]: value })}
                 dropdownMatchSelectWidth={false}
                 allowClear={field.key === "message_to_column"}
