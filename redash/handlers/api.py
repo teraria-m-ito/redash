@@ -88,6 +88,7 @@ from redash.handlers.query_snippets import (
 from redash.handlers.ai import AiGenerateQueryResource
 from redash.handlers.settings import OrganizationSettings
 from redash.handlers.users import (
+    UserAuthorizeResource,
     UserDisableResource,
     UserInviteResource,
     UserListResource,
@@ -265,6 +266,7 @@ api.add_org_resource(
 api.add_org_resource(UserListResource, "/api/users", endpoint="users")
 api.add_org_resource(UserResource, "/api/users/<user_id>", endpoint="user")
 api.add_org_resource(UserInviteResource, "/api/users/<user_id>/invite", endpoint="user_invite")
+api.add_org_resource(UserAuthorizeResource, "/api/users/<user_id>/authorize", endpoint="user_authorize")
 api.add_org_resource(
     UserResetPasswordResource,
     "/api/users/<user_id>/reset_password",

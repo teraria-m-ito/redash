@@ -1,6 +1,7 @@
 import { get, map } from "lodash";
-import React, { useMemo, useCallback } from "react";
+import React, { useMemo, useCallback, useState } from "react";
 import PropTypes from "prop-types";
+import Button from "antd/lib/button";
 import { UserProfile } from "@/components/proptypes";
 import DynamicComponent from "@/components/DynamicComponent";
 import DynamicForm from "@/components/dynamic-form/DynamicForm";
@@ -14,6 +15,7 @@ import useUserGroups from "../hooks/useUserGroups";
 
 export default function UserInfoForm(props) {
   const { user, onChange } = props;
+  const [authorizing, setAuthorizing] = useState(false);
 
   const { groups, allGroups, isLoading: isLoadingGroups } = useUserGroups(user);
 
@@ -37,6 +39,19 @@ export default function UserInfoForm(props) {
     },
     [user, handleChange]
   );
+
+  const authorizeUser = useCallback(() => {
+    setAuthorizing(true);
+    User.authorizeUser(user)
+      .then(data => {
+        if (data) {
+          handleChange(User.convertUserInfo(data));
+        }
+      })
+      .finally(() => {
+        setAuthorizing(false);
+      });
+  }, [user, handleChange]);
 
   const formFields = useMemo(
     () =>
@@ -78,9 +93,16 @@ export default function UserInfoForm(props) {
     [user, groups, allGroups, isLoadingGroups]
   );
 
+  const showAuthorize = currentUser.isAdmin && user.isInvitationPending && !user.isDisabled;
+
   return (
     <DynamicComponent name="UserProfile.UserInfoForm" {...props}>
       <DynamicForm fields={formFields} onSubmit={saveUser} hideSubmitButton={user.isDisabled} />
+      {showAuthorize && (
+        <Button className="w-100 m-t-10" type="primary" onClick={authorizeUser} loading={authorizing}>
+          Authorize
+        </Button>
+      )}
     </DynamicComponent>
   );
 }

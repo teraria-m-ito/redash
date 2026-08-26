@@ -165,6 +165,22 @@ class UserInviteResource(BaseResource):
         return invite_user(self.current_org, self.current_user, user)
 
 
+class UserAuthorizeResource(BaseResource):
+    @require_admin
+    def post(self, user_id):
+        user = get_object_or_404(models.User.get_by_id_and_org, user_id, self.current_org)
+        if user.is_disabled:
+            abort(400, message="Cannot authorize a disabled user.")
+        if not user.is_invitation_pending:
+            abort(400, message="User is already authorized.")
+
+        user.is_invitation_pending = False
+        models.db.session.commit()
+
+        self.record_event({"action": "authorize", "object_id": user.id, "object_type": "user"})
+        return user.to_dict(with_api_key=is_admin_or_owner(user_id))
+
+
 class UserResetPasswordResource(BaseResource):
     @require_admin
     def post(self, user_id):
@@ -284,7 +300,7 @@ class UserResource(BaseResource):
                 message="You cannot delete your own account. "
                 "Please ask another admin to do this for you.",  # fmt: skip
             )
-        elif not user.is_invitation_pending:
+        elif not user.is_invitation_pending and not user.is_disabled:
             abort(
                 403,
                 message="You cannot delete activated users. "

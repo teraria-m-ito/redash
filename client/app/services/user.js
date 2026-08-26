@@ -111,6 +111,19 @@ function resendInvitation(user) {
     });
 }
 
+function authorizeUser(user) {
+  const userName = sanitize(user.name);
+  return axios
+    .post(`api/users/${user.id}/authorize`)
+    .then(data => {
+      notification.success(`User ${userName} has been authorized.`);
+      return data;
+    })
+    .catch(error => {
+      notification.error("Cannot authorize user", getErrorMessage(error));
+    });
+}
+
 const User = {
   query: params => axios.get("api/users", { params }),
   get: ({ id }) => axios.get(`api/users/${id}`),
@@ -123,6 +136,7 @@ const User = {
   regenerateApiKey,
   sendPasswordReset,
   resendInvitation,
+  authorizeUser,
 };
 
 export default User;
