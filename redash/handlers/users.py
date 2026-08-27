@@ -227,15 +227,20 @@ class UserResource(BaseResource):
 
         params = project(req, ("email", "name", "password", "old_password", "group_ids"))
 
-        if "password" in params and "old_password" not in params:
-            abort(403, message="Must provide current password to update password.")
-
-        if "old_password" in params and not user.verify_password(params["old_password"]):
-            abort(403, message="Incorrect current password.")
-
         if "password" in params:
-            user.hash_password(params.pop("password"))
-            params.pop("old_password")
+            password = params.pop("password")
+            old_password = params.pop("old_password", None)
+
+            if password:
+                is_admin = self.current_user.has_permission("admin")
+                if is_admin:
+                    user.hash_password(password)
+                else:
+                    if old_password is None:
+                        abort(403, message="Must provide current password to update password.")
+                    if not user.verify_password(old_password):
+                        abort(403, message="Incorrect current password.")
+                    user.hash_password(password)
 
         if "group_ids" in params:
             if not self.current_user.has_permission("admin"):

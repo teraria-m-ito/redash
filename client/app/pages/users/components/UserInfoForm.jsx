@@ -16,6 +16,7 @@ import useUserGroups from "../hooks/useUserGroups";
 export default function UserInfoForm(props) {
   const { user, onChange } = props;
   const [authorizing, setAuthorizing] = useState(false);
+  const [formKey, setFormKey] = useState(0);
 
   const { groups, allGroups, isLoading: isLoadingGroups } = useUserGroups(user);
 
@@ -23,15 +24,29 @@ export default function UserInfoForm(props) {
 
   const saveUser = useCallback(
     (values, successCallback, errorCallback) => {
+      const { password, password_confirm: passwordConfirm, ...rest } = values;
       const data = {
-        ...values,
+        ...rest,
         id: user.id,
       };
 
+      if (password || passwordConfirm) {
+        if (!password || password.length < 6) {
+          errorCallback("Password is too short.");
+          return;
+        }
+        if (password !== passwordConfirm) {
+          errorCallback("Passwords don't match.");
+          return;
+        }
+        data.password = password;
+      }
+
       User.save(data)
-        .then(user => {
+        .then(savedUser => {
           successCallback("Saved.");
-          handleChange(User.convertUserInfo(user));
+          handleChange(User.convertUserInfo(savedUser));
+          setFormKey(key => key + 1);
         })
         .catch(error => {
           errorCallback(get(error, "response.data.message", "Failed saving."));
@@ -87,7 +102,25 @@ export default function UserInfoForm(props) {
                 required: false,
                 content: isLoadingGroups ? "Loading..." : <UserGroups data-test="Groups" groups={groups} />,
               },
-        ],
+          !user.isDisabled &&
+            currentUser.isAdmin &&
+            currentUser.id !== user.id && {
+              name: "password",
+              title: "Password",
+              type: "password",
+              required: false,
+              initialValue: "",
+            },
+          !user.isDisabled &&
+            currentUser.isAdmin &&
+            currentUser.id !== user.id && {
+              name: "password_confirm",
+              title: "Password Confirm",
+              type: "password",
+              required: false,
+              initialValue: "",
+            },
+        ].filter(Boolean),
         field => ({ readOnly: user.isDisabled, required: true, ...field })
       ),
     [user, groups, allGroups, isLoadingGroups]
@@ -97,7 +130,7 @@ export default function UserInfoForm(props) {
 
   return (
     <DynamicComponent name="UserProfile.UserInfoForm" {...props}>
-      <DynamicForm fields={formFields} onSubmit={saveUser} hideSubmitButton={user.isDisabled} />
+      <DynamicForm key={formKey} fields={formFields} onSubmit={saveUser} hideSubmitButton={user.isDisabled} />
       {showAuthorize && (
         <Button className="w-100 m-t-10" type="primary" onClick={authorizeUser} loading={authorizing}>
           Authorize

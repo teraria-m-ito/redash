@@ -313,6 +313,25 @@ class TestUserResourcePost(BaseTestCase):
         user = models.User.query.get(self.factory.user.id)
         self.assertTrue(user.verify_password(new_password))
 
+    def test_admin_can_change_other_user_password_without_old_password(self):
+        admin = self.factory.create_admin()
+        other_user = self.factory.create_user()
+        other_user.hash_password("old password")
+        models.db.session.add(other_user)
+        models.db.session.commit()
+
+        new_password = "new password"
+        rv = self.make_request(
+            "post",
+            "/api/users/{}".format(other_user.id),
+            data={"password": new_password},
+            user=admin,
+        )
+        self.assertEqual(rv.status_code, 200)
+
+        user = models.User.query.get(other_user.id)
+        self.assertTrue(user.verify_password(new_password))
+
     def test_returns_400_when_using_temporary_email(self):
         admin = self.factory.create_admin()
 
