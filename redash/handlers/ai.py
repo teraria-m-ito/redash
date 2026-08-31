@@ -6,15 +6,15 @@ from flask import request
 from flask_restful import abort
 
 from redash.ai_client import (
-    AiApiKind,
     AiChatError,
-    AiSettingKey,
     MessageRole,
-    assistant_content_from_response,
     call_ai_chat,
-    chat_completions_url,
     get_org_ai_settings,
-    resolve_ai_endpoint,
+)
+from redash.ai_query import (
+    format_sql_pairs_for_prompt,
+    generate_with_validation,
+    retrieve_sql_pairs,
 )
 from redash.handlers.base import BaseResource, get_object_or_404
 from redash.models import DataSource
@@ -24,12 +24,14 @@ from redash.query_runner import NotSupported
 logger = logging.getLogger(__name__)
 
 SCHEMA_MAX_CHARS = 80000
+MAX_VALIDATION_RETRIES = 3
 
 SYSTEM_PROMPT = """あなたは指定データソースのスキーマだけを使ってクエリを書くアシスタントです。
 厳守事項:
 - 与えられたスキーマに存在するテーブル名とカラム名だけを使う
 - スキーマに無い名前は、一般的な名前（users, orders, sales など）でも絶対に作らない
 - テーブル名はスキーマの表記をそのまま使う（schema.table 形式ならその通り）
+- SQL例がある場合は、書き方やテーブルの使い方の参考にする（ただし質問に合わせて適宜変更する）
 - スキーマが空、または該当テーブルが無い場合は query を空文字にし、message に理由を日本語で書く
 - 回答は次のJSONのみ。前後に文章を付けない
 {"query": "クエリ本文", "message": "日本語の短い説明"}"""
@@ -123,6 +125,30 @@ def load_data_source_schema(data_source, fallback_schema):
         return fallback_schema or []
 
 
+def build_system_context(
+    *,
+    data_source_name,
+    data_source_type,
+    syntax,
+    current_query,
+    schema_text,
+    sql_pairs_text,
+):
+    parts = [
+        "データソース: {} ({})".format(data_source_name or "(未選択)", data_source_type or "(不明)"),
+        "構文: {}".format(syntax),
+        "",
+        "現在のクエリ:",
+        current_query or "(空)",
+        "",
+        "テーブル定義:",
+        schema_text,
+    ]
+    if sql_pairs_text:
+        parts.extend(["", sql_pairs_text])
+    return "\n".join(parts)
+
+
 class AiGenerateQueryResource(BaseResource):
     @require_permission("create_query")
     def post(self):
@@ -141,9 +167,11 @@ class AiGenerateQueryResource(BaseResource):
         current_query = req.get("current_query") or ""
         fallback_schema = req.get("schema") if isinstance(req.get("schema"), list) else []
         syntax = req.get("syntax") or "sql"
+        validate_query = req.get("validate", True)
         data_source_name = ""
         data_source_type = ""
         schema = fallback_schema
+        data_source = None
 
         data_source_id = req.get("data_source_id")
         if data_source_id:
@@ -158,14 +186,18 @@ class AiGenerateQueryResource(BaseResource):
                 pass
 
         schema_text = schema_to_prompt_text(schema, prompt)
-        context = (
-            "データソース: {} ({})\n構文: {}\n\n現在のクエリ:\n{}\n\nテーブル定義:\n{}".format(
-                data_source_name or "(未選択)",
-                data_source_type or "(不明)",
-                syntax,
-                current_query or "(空)",
-                schema_text,
-            )
+        sql_pairs_text = ""
+        if data_source:
+            pairs = retrieve_sql_pairs(data_source.id, org.id, prompt)
+            sql_pairs_text = format_sql_pairs_for_prompt(pairs)
+
+        context = build_system_context(
+            data_source_name=data_source_name,
+            data_source_type=data_source_type,
+            syntax=syntax,
+            current_query=current_query,
+            schema_text=schema_text,
+            sql_pairs_text=sql_pairs_text,
         )
 
         messages = [
@@ -179,13 +211,34 @@ class AiGenerateQueryResource(BaseResource):
         messages.append({"role": MessageRole.USER, "content": prompt})
 
         try:
-            content = call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180)
+            if validate_query and data_source:
+                query_text, message, validated = generate_with_validation(
+                    api_url=api_url,
+                    api_key=api_key,
+                    model=model,
+                    messages=messages,
+                    data_source=data_source,
+                    user=self.current_user,
+                    prompt=prompt,
+                    extract_query_payload=extract_query_payload,
+                    max_retries=MAX_VALIDATION_RETRIES,
+                )
+            else:
+                content = call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180)
+                query_text, message = extract_query_payload(content)
+                validated = False
         except AiChatError as error:
             abort(error.status_code, message=error.message)
+        except Exception as error:
+            logger.exception("AI query generation failed")
+            abort(500, message="クエリの生成中にエラーが発生しました: {}".format(error))
 
-        query_text, message = extract_query_payload(content)
         if not query_text and not message:
             abort(502, message="AIがクエリを返せませんでした。")
 
         self.record_event({"action": "generate", "object_type": "ai_query"})
-        return {"query": query_text, "message": message or "クエリを生成しました。"}
+        return {
+            "query": query_text,
+            "message": message or "クエリを生成しました。",
+            "validated": validated,
+        }

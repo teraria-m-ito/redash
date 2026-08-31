@@ -18,7 +18,13 @@ export const AiMessageRole = {
 };
 
 function getErrorMessage(error) {
-  return get(error, "response.data.message") || "クエリの生成に失敗しました。";
+  return (
+    get(error, "response.data.message") ||
+    get(error, "response.data.error") ||
+    get(error, "response.statusText") ||
+    get(error, "message") ||
+    "クエリの生成に失敗しました。"
+  );
 }
 
 export default function AiQueryDrawer({
@@ -33,7 +39,25 @@ export default function AiQueryDrawer({
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [sqlPairs, setSqlPairs] = useState([]);
+  const [savingPairKey, setSavingPairKey] = useState(null);
   const listRef = useRef(null);
+
+  const loadSqlPairs = useCallback(() => {
+    if (!dataSourceId) {
+      setSqlPairs([]);
+      return Promise.resolve();
+    }
+    return AiQuery.listSqlPairs(dataSourceId)
+      .then(data => setSqlPairs(data || []))
+      .catch(() => setSqlPairs([]));
+  }, [dataSourceId]);
+
+  useEffect(() => {
+    if (visible) {
+      loadSqlPairs();
+    }
+  }, [visible, loadSqlPairs]);
 
   useEffect(() => {
     if (listRef.current) {
@@ -59,13 +83,23 @@ export default function AiQueryDrawer({
       data_source_id: dataSourceId,
       schema,
       syntax: syntax || "sql",
+      validate: Boolean(dataSourceId),
     })
       .then(data => {
         const queryText = data.query || "";
-        const message = data.message || "クエリを生成しました。";
+        let message = data.message || "クエリを生成しました。";
+        if (data.validated) {
+          message = `${message}（検証済み）`;
+        }
         setMessages(current => [
           ...current,
-          { role: AiMessageRole.ASSISTANT, content: message, query: queryText },
+          {
+            role: AiMessageRole.ASSISTANT,
+            content: message,
+            query: queryText,
+            question: text,
+            validated: data.validated,
+          },
         ]);
       })
       .catch(error => {
@@ -75,6 +109,39 @@ export default function AiQueryDrawer({
       })
       .finally(() => setIsGenerating(false));
   }, [prompt, isGenerating, messages, currentQuery, dataSourceId, schema, syntax]);
+
+  const saveSqlPair = useCallback(
+    (question, query, messageKey) => {
+      if (!dataSourceId || !question || !query) {
+        return;
+      }
+      setSavingPairKey(messageKey);
+      AiQuery.createSqlPair({
+        data_source_id: dataSourceId,
+        question,
+        query,
+      })
+        .then(() => {
+          notification.success("SQL例を保存しました。");
+          loadSqlPairs();
+        })
+        .catch(error => notification.error(getErrorMessage(error)))
+        .finally(() => setSavingPairKey(null));
+    },
+    [dataSourceId, loadSqlPairs]
+  );
+
+  const deleteSqlPair = useCallback(
+    pairId => {
+      AiQuery.deleteSqlPair(pairId)
+        .then(() => {
+          notification.success("SQL例を削除しました。");
+          loadSqlPairs();
+        })
+        .catch(error => notification.error(getErrorMessage(error)));
+    },
+    [loadSqlPairs]
+  );
 
   return (
     <Drawer
@@ -94,6 +161,9 @@ export default function AiQueryDrawer({
               {schema.length === 0 && (
                 <div className="m-t-10">スキーマ未取得です。左ペインのテーブル一覧が表示されてから送信してください。</div>
               )}
+              {dataSourceId && sqlPairs.length > 0 && (
+                <div className="m-t-10">登録済み SQL 例: {sqlPairs.length} 件（類似する例を参考に生成します）</div>
+              )}
               {currentUser.isAdmin && (
                 <div className="m-t-10">
                   接続設定は <Link href="settings/ai">AI Setting</Link> で行います。
@@ -101,32 +171,55 @@ export default function AiQueryDrawer({
               )}
             </div>
           )}
-          {messages.map((item, index) => (
-            <div
-              key={`ai-message-${index}`}
-              className={`ai-query-drawer-message ai-query-drawer-message-${item.role}${
-                item.isError ? " ai-query-drawer-message-error" : ""
-              }`}>
-              <div className="ai-query-drawer-message-content">{item.content}</div>
-              {item.query && (
-                <React.Fragment>
-                  <pre className="ai-query-drawer-query">{item.query}</pre>
-                  <Button
-                    className="m-t-5"
-                    data-test="AiQueryApplyButton"
-                    onClick={() => onApplyQuery(item.query)}>
-                    Apply
-                  </Button>
-                </React.Fragment>
-              )}
-            </div>
-          ))}
+          {messages.map((item, index) => {
+            const messageKey = `ai-message-${index}`;
+            return (
+              <div
+                key={messageKey}
+                className={`ai-query-drawer-message ai-query-drawer-message-${item.role}${
+                  item.isError ? " ai-query-drawer-message-error" : ""
+                }`}>
+                <div className="ai-query-drawer-message-content">{item.content}</div>
+                {item.query && (
+                  <React.Fragment>
+                    <pre className="ai-query-drawer-query">{item.query}</pre>
+                    <div className="ai-query-drawer-actions m-t-5">
+                      <Button data-test="AiQueryApplyButton" onClick={() => onApplyQuery(item.query)}>
+                        Apply
+                      </Button>
+                      {dataSourceId && item.question && (
+                        <Button
+                          className="m-l-5"
+                          loading={savingPairKey === messageKey}
+                          onClick={() => saveSqlPair(item.question, item.query, messageKey)}>
+                          例として保存
+                        </Button>
+                      )}
+                    </div>
+                  </React.Fragment>
+                )}
+              </div>
+            );
+          })}
           {isGenerating && (
             <div className="ai-query-drawer-loading">
               <Spin size="small" /> クエリを生成しています...
             </div>
           )}
         </div>
+        {dataSourceId && sqlPairs.length > 0 && (
+          <div className="ai-query-drawer-pairs m-t-10">
+            <div className="ai-query-drawer-pairs-title">SQL 例</div>
+            {sqlPairs.slice(0, 5).map(pair => (
+              <div key={pair.id} className="ai-query-drawer-pair-item">
+                <div className="ai-query-drawer-pair-question">{pair.question}</div>
+                <Button size="small" danger onClick={() => deleteSqlPair(pair.id)}>
+                  削除
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="ai-query-drawer-input">
           <Input.TextArea
             value={prompt}
