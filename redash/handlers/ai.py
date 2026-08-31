@@ -1,29 +1,26 @@
-import json
 import logging
-import re
 
 from flask import request
 from flask_restful import abort
 
-from redash.ai_client import (
-    AiChatError,
-    MessageRole,
-    call_ai_chat,
-    get_org_ai_settings,
-)
+from redash.ai_client import AiChatError, get_org_ai_settings
 from redash.ai_query import (
+    build_generation_context,
+    extract_query_payload,
+    generate_query,
+    format_instructions_for_prompt,
     format_sql_pairs_for_prompt,
-    generate_with_validation,
+    load_data_source_schema,
+    retrieve_instructions,
     retrieve_sql_pairs,
+    schema_to_prompt_text,
 )
 from redash.handlers.base import BaseResource, get_object_or_404
 from redash.models import DataSource
 from redash.permissions import require_access, require_permission, view_only
-from redash.query_runner import NotSupported
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_MAX_CHARS = 80000
 MAX_VALIDATION_RETRIES = 3
 
 SYSTEM_PROMPT = """あなたは指定データソースのスキーマだけを使ってクエリを書くアシスタントです。
@@ -31,122 +28,12 @@ SYSTEM_PROMPT = """あなたは指定データソースのスキーマだけを�
 - 与えられたスキーマに存在するテーブル名とカラム名だけを使う
 - スキーマに無い名前は、一般的な名前（users, orders, sales など）でも絶対に作らない
 - テーブル名はスキーマの表記をそのまま使う（schema.table 形式ならその通り）
+- ビジネスルールがある場合は必ず厳守する
 - SQL例がある場合は、書き方やテーブルの使い方の参考にする（ただし質問に合わせて適宜変更する）
+- 推論プランがある場合は、その方針に沿ってSQLを書く
 - スキーマが空、または該当テーブルが無い場合は query を空文字にし、message に理由を日本語で書く
 - 回答は次のJSONのみ。前後に文章を付けない
 {"query": "クエリ本文", "message": "日本語の短い説明"}"""
-
-
-def extract_query_payload(content):
-    text = (content or "").strip()
-    if not text:
-        return "", ""
-
-    candidates = [text]
-    fenced_json = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
-    if fenced_json:
-        candidates.insert(0, fenced_json.group(1).strip())
-
-    for candidate in candidates:
-        try:
-            parsed = json.loads(candidate)
-            if isinstance(parsed, dict) and "query" in parsed:
-                return (parsed.get("query") or "").strip(), (parsed.get("message") or "").strip()
-        except (TypeError, ValueError):
-            continue
-
-    sql_block = re.search(r"```(?:sql|SQL)\s*(.*?)```", text, re.DOTALL)
-    if sql_block:
-        explanation = re.sub(r"```(?:sql|SQL)\s*.*?```", "", text, flags=re.DOTALL).strip()
-        return sql_block.group(1).strip(), explanation
-
-    generic_block = re.search(r"```\s*(.*?)```", text, re.DOTALL)
-    if generic_block:
-        explanation = re.sub(r"```\s*.*?```", "", text, flags=re.DOTALL).strip()
-        return generic_block.group(1).strip(), explanation
-
-    return text, ""
-
-
-def format_table_line(table):
-    name = table.get("name") or ""
-    cols = []
-    for col in table.get("columns") or []:
-        if isinstance(col, dict):
-            col_name = col.get("name") or ""
-            col_type = col.get("type") or ""
-            cols.append("{} {}".format(col_name, col_type).strip() if col_type else col_name)
-        else:
-            cols.append(str(col))
-    return "{} ({})".format(name, ", ".join(cols))
-
-
-def schema_to_prompt_text(schema, prompt=""):
-    tables = list(schema or [])
-    if not tables:
-        return "(なし)"
-
-    full = "\n".join(format_table_line(table) for table in tables)
-    if len(full) <= SCHEMA_MAX_CHARS:
-        return full
-
-    names = [table.get("name") or "" for table in tables]
-    text = "テーブル一覧:\n{}\n\nカラム定義:\n".format(", ".join(names))
-    tokens = set(token.lower() for token in re.findall(r"[A-Za-z0-9_]+", prompt or "") if len(token) >= 2)
-
-    def match_score(table):
-        name = (table.get("name") or "").lower()
-        if any(token in name for token in tokens):
-            return 0
-        for col in table.get("columns") or []:
-            col_name = (col.get("name") if isinstance(col, dict) else str(col)).lower()
-            if any(token in col_name for token in tokens):
-                return 1
-        return 2
-
-    for table in sorted(tables, key=match_score):
-        line = format_table_line(table)
-        if len(text) + len(line) + 1 > SCHEMA_MAX_CHARS:
-            break
-        text += line + "\n"
-    return text
-
-
-def load_data_source_schema(data_source, fallback_schema):
-    schema = data_source.get_cached_schema()
-    if schema:
-        return schema
-    try:
-        return data_source.get_schema()
-    except NotSupported:
-        return fallback_schema or []
-    except Exception:
-        logger.exception("Failed to load schema for data_source %s", data_source.id)
-        return fallback_schema or []
-
-
-def build_system_context(
-    *,
-    data_source_name,
-    data_source_type,
-    syntax,
-    current_query,
-    schema_text,
-    sql_pairs_text,
-):
-    parts = [
-        "データソース: {} ({})".format(data_source_name or "(未選択)", data_source_type or "(不明)"),
-        "構文: {}".format(syntax),
-        "",
-        "現在のクエリ:",
-        current_query or "(空)",
-        "",
-        "テーブル定義:",
-        schema_text,
-    ]
-    if sql_pairs_text:
-        parts.extend(["", sql_pairs_text])
-    return "\n".join(parts)
 
 
 class AiGenerateQueryResource(BaseResource):
@@ -168,6 +55,7 @@ class AiGenerateQueryResource(BaseResource):
         fallback_schema = req.get("schema") if isinstance(req.get("schema"), list) else []
         syntax = req.get("syntax") or "sql"
         validate_query = req.get("validate", True)
+        use_reasoning = req.get("use_reasoning", True)
         data_source_name = ""
         data_source_type = ""
         schema = fallback_schema
@@ -187,52 +75,47 @@ class AiGenerateQueryResource(BaseResource):
 
         schema_text = schema_to_prompt_text(schema, prompt)
         sql_pairs_text = ""
+        instructions_text = ""
         if data_source:
             pairs = retrieve_sql_pairs(data_source.id, org.id, prompt)
             sql_pairs_text = format_sql_pairs_for_prompt(pairs)
+            instructions = retrieve_instructions(data_source.id, org.id, prompt)
+            instructions_text = format_instructions_for_prompt(instructions)
 
-        context = build_system_context(
+        context = build_generation_context(
             data_source_name=data_source_name,
             data_source_type=data_source_type,
             syntax=syntax,
             current_query=current_query,
             schema_text=schema_text,
             sql_pairs_text=sql_pairs_text,
+            instructions_text=instructions_text,
         )
 
-        messages = [
-            {"role": MessageRole.SYSTEM, "content": SYSTEM_PROMPT + "\n\n" + context},
-        ]
-        for item in history[-20:]:
-            role = item.get("role")
-            content = (item.get("content") or "").strip()
-            if role in (MessageRole.USER, MessageRole.ASSISTANT) and content:
-                messages.append({"role": role, "content": content})
-        messages.append({"role": MessageRole.USER, "content": prompt})
-
         try:
-            if validate_query and data_source:
-                query_text, message, validated = generate_with_validation(
-                    api_url=api_url,
-                    api_key=api_key,
-                    model=model,
-                    messages=messages,
-                    data_source=data_source,
-                    user=self.current_user,
-                    prompt=prompt,
-                    extract_query_payload=extract_query_payload,
-                    max_retries=MAX_VALIDATION_RETRIES,
-                )
-            else:
-                content = call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180)
-                query_text, message = extract_query_payload(content)
-                validated = False
+            result = generate_query(
+                api_url=api_url,
+                api_key=api_key,
+                model=model,
+                system_prompt=SYSTEM_PROMPT,
+                context=context,
+                prompt=prompt,
+                history=history,
+                data_source=data_source,
+                user=self.current_user,
+                validate=validate_query,
+                use_reasoning=use_reasoning,
+                extract_query_payload=extract_query_payload,
+                max_retries=MAX_VALIDATION_RETRIES,
+            )
         except AiChatError as error:
             abort(error.status_code, message=error.message)
         except Exception as error:
             logger.exception("AI query generation failed")
             abort(500, message="クエリの生成中にエラーが発生しました: {}".format(error))
 
+        query_text = result.get("query") or ""
+        message = result.get("message") or ""
         if not query_text and not message:
             abort(502, message="AIがクエリを返せませんでした。")
 
@@ -240,5 +123,6 @@ class AiGenerateQueryResource(BaseResource):
         return {
             "query": query_text,
             "message": message or "クエリを生成しました。",
-            "validated": validated,
+            "validated": result.get("validated", False),
+            "reasoning": result.get("reasoning"),
         }

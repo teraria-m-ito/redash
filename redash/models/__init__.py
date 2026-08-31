@@ -1264,6 +1264,45 @@ class AiSqlPair(TimestampMixin, BelongsToOrgMixin, db.Model):
         }
 
 
+@generic_repr("id", "data_source_id", "org_id", "user_id")
+class AiInstruction(TimestampMixin, BelongsToOrgMixin, db.Model):
+    id = primary_key("AiInstruction")
+    org_id = Column(key_type("Organization"), db.ForeignKey("organizations.id"))
+    org = db.relationship(Organization, backref="ai_instructions")
+    data_source_id = Column(key_type("DataSource"), db.ForeignKey("data_sources.id"))
+    data_source = db.relationship(DataSource, backref=backref("ai_instructions", cascade="all, delete-orphan"))
+    user_id = Column(key_type("User"), db.ForeignKey("users.id"))
+    user = db.relationship(User, backref="ai_instructions")
+    title = Column(db.String(255), nullable=True)
+    content = Column(db.Text, nullable=False)
+
+    __tablename__ = "ai_instructions"
+    __table_args__ = (
+        db.Index("ix_ai_instructions_data_source_id", "data_source_id"),
+        db.Index("ix_ai_instructions_org_id", "org_id"),
+    )
+
+    @classmethod
+    def get_by_id_and_org(cls, object_id, org):
+        return cls.query.filter(cls.id == object_id, cls.org_id == org.id).one()
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "data_source_id": self.data_source_id,
+            "title": self.title,
+            "content": self.content,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "user": {
+                "id": self.user.id,
+                "name": self.user.name,
+            }
+            if self.user
+            else None,
+        }
+
+
 def generate_slug(ctx):
     slug = utils.slugify(ctx.current_parameters["name"])
     tries = 1

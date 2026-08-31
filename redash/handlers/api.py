@@ -86,6 +86,7 @@ from redash.handlers.query_snippets import (
     QuerySnippetResource,
 )
 from redash.handlers.ai import AiGenerateQueryResource
+from redash.handlers.ai_instructions import AiInstructionListResource, AiInstructionResource
 from redash.handlers.ai_sql_pairs import AiSqlPairListResource, AiSqlPairResource
 from redash.handlers.settings import OrganizationSettings
 from redash.handlers.users import (
@@ -301,3 +302,5 @@ api.add_org_resource(OrganizationSettings, "/api/settings/organization", endpoin
 api.add_org_resource(AiGenerateQueryResource, "/api/ai/generate_query", endpoint="ai_generate_query")
 api.add_org_resource(AiSqlPairListResource, "/api/ai/sql_pairs", endpoint="ai_sql_pairs")
 api.add_org_resource(AiSqlPairResource, "/api/ai/sql_pairs/<pair_id>", endpoint="ai_sql_pair")
+api.add_org_resource(AiInstructionListResource, "/api/ai/instructions", endpoint="ai_instructions")
+api.add_org_resource(AiInstructionResource, "/api/ai/instructions/<instruction_id>", endpoint="ai_instruction")

@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from redash.ai_query import build_correction_message, dry_run_query, generate_with_validation
+from redash.ai_query import build_correction_message, dry_run_query, generate_query, generate_with_validation
 
 
 class TestGenerateWithValidation(TestCase):
@@ -73,3 +73,33 @@ class TestGenerateWithValidation(TestCase):
         error = dry_run_query(data_source, "SELECT 1", None)
         self.assertIsNone(error)
         runner.apply_auto_limit.assert_called_once_with("SELECT 1", True)
+
+
+class TestGenerateQuery(TestCase):
+    @patch("redash.ai_query.generate_with_validation")
+    @patch("redash.ai_query.generate_reasoning_plan")
+    def test_generate_query_uses_reasoning(self, mock_reasoning, mock_validate):
+        mock_reasoning.return_value = "orders を使う"
+        mock_validate.return_value = ("SELECT 1", "ok", True)
+
+        result = generate_query(
+            api_url="https://api.openai.com/v1",
+            api_key="key",
+            model="gpt-4o-mini",
+            system_prompt="system",
+            context="context",
+            prompt="売上",
+            history=[],
+            data_source=Mock(),
+            user=None,
+            validate=True,
+            use_reasoning=True,
+            extract_query_payload=lambda content: ("SELECT 1", "ok"),
+        )
+
+        self.assertEqual(result["query"], "SELECT 1")
+        self.assertEqual(result["reasoning"], "orders を使う")
+        user_message = mock_validate.call_args[1]["messages"][-1]["content"]
+        self.assertIn("推論プラン", user_message)
+        self.assertIn("orders を使う", user_message)
+

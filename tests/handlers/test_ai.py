@@ -2,18 +2,17 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from redash.ai_query import (
-    format_sql_pairs_for_prompt,
-    retrieve_sql_pairs,
-    score_sql_pair,
-)
-from redash.handlers.ai import (
-    AiApiKind,
-    chat_completions_url,
     extract_query_payload,
-    resolve_ai_endpoint,
+    format_instructions_for_prompt,
+    format_sql_pairs_for_prompt,
+    retrieve_instructions,
+    retrieve_sql_pairs,
     schema_to_prompt_text,
+    score_table_relevance,
 )
-from redash.models import AiSqlPair, DataSource, db
+from redash.ai_client import AiApiKind, chat_completions_url, resolve_ai_endpoint
+from redash.handlers.ai import AiGenerateQueryResource
+from redash.models import AiInstruction, AiSqlPair, DataSource, db
 from tests import BaseTestCase
 
 
@@ -47,31 +46,52 @@ class TestExtractQueryPayload(TestCase):
 
 
 class TestSchemaToPromptText(TestCase):
-    def test_formats_table_and_column_types(self):
+    def test_includes_table_and_column_descriptions(self):
         text = schema_to_prompt_text(
             [
                 {
                     "name": "public.orders",
-                    "columns": [{"name": "id", "type": "integer"}, {"name": "amount", "type": "numeric"}],
+                    "description": "注文テーブル",
+                    "columns": [
+                        {"name": "id", "type": "integer"},
+                        {"name": "amount", "type": "numeric", "description": "税込金額"},
+                    ],
                 }
             ]
         )
         self.assertIn("public.orders", text)
-        self.assertIn("id integer", text)
-        self.assertIn("amount numeric", text)
+        self.assertIn("注文テーブル", text)
+        self.assertIn("税込金額", text)
+
+    def test_prioritizes_relevant_tables_when_truncated(self):
+        schema = [
+            {
+                "name": "public.customers",
+                "columns": [{"name": "id", "type": "integer"}],
+            },
+            {
+                "name": "public.orders",
+                "description": "売上テーブル",
+                "columns": [{"name": "amount", "type": "numeric"}],
+            },
+        ]
+        text = schema_to_prompt_text(schema, "売上を集計", max_chars=300)
+        self.assertIn("public.orders", text)
+        self.assertGreater(score_table_relevance(schema[1], {"売上"}), score_table_relevance(schema[0], {"売上"}))
 
 
 class TestSqlPairs(TestCase):
-    def test_score_sql_pair_prefers_question_match(self):
-        pair = Mock(question="月別売上", query="SELECT 1")
-        tokens = {"月別", "売上"}
-        self.assertGreater(score_sql_pair(pair, tokens), 0)
-
     def test_format_sql_pairs_for_prompt(self):
         pair = Mock(question="件数", query="SELECT COUNT(*) FROM orders")
         text = format_sql_pairs_for_prompt([pair])
         self.assertIn("件数", text)
         self.assertIn("SELECT COUNT(*) FROM orders", text)
+
+    def test_format_instructions_for_prompt(self):
+        instruction = Mock(title="売上定義", content="orders.amount の合計")
+        text = format_instructions_for_prompt([instruction])
+        self.assertIn("売上定義", text)
+        self.assertIn("orders.amount", text)
 
 
 class TestAiGenerateQuery(BaseTestCase):
@@ -84,7 +104,7 @@ class TestAiGenerateQuery(BaseTestCase):
         self.assertEqual(rv.status_code, 400)
         self.assertIn("AI Setting", rv.json["message"])
 
-    @patch("redash.handlers.ai.generate_with_validation")
+    @patch("redash.handlers.ai.generate_query")
     @patch.object(DataSource, "get_cached_schema")
     def test_returns_generated_query(self, mock_schema, mock_generate):
         self.factory.org.set_setting("ai_api_url", "https://api.openai.com/v1")
@@ -99,7 +119,12 @@ class TestAiGenerateQuery(BaseTestCase):
                 "columns": [{"name": "id", "type": "integer"}, {"name": "amount", "type": "numeric"}],
             }
         ]
-        mock_generate.return_value = ("SELECT COUNT(*) FROM public.orders", "件数です", True)
+        mock_generate.return_value = {
+            "query": "SELECT COUNT(*) FROM public.orders",
+            "message": "件数です",
+            "validated": True,
+            "reasoning": "orders を使う",
+        }
 
         rv = self.make_request(
             "post",
@@ -110,10 +135,11 @@ class TestAiGenerateQuery(BaseTestCase):
         self.assertEqual(rv.json["query"], "SELECT COUNT(*) FROM public.orders")
         self.assertEqual(rv.json["message"], "件数です")
         self.assertTrue(rv.json["validated"])
+        self.assertEqual(rv.json["reasoning"], "orders を使う")
 
-    @patch("redash.ai_client.requests.post")
+    @patch("redash.handlers.ai.generate_query")
     @patch.object(DataSource, "get_cached_schema")
-    def test_includes_sql_pairs_in_system_prompt(self, mock_schema, mock_post):
+    def test_includes_sql_pairs_and_instructions_in_context(self, mock_schema, mock_generate):
         self.factory.org.set_setting("ai_api_url", "https://api.openai.com/v1")
         self.factory.org.set_setting("ai_api_key", "sk-test")
         self.factory.org.set_setting("ai_model", "gpt-4o-mini")
@@ -126,7 +152,14 @@ class TestAiGenerateQuery(BaseTestCase):
             question="月別売上",
             query="SELECT date_trunc('month', created_at), SUM(amount) FROM public.orders GROUP BY 1",
         )
-        db.session.add(pair)
+        instruction = AiInstruction(
+            org=self.factory.org,
+            data_source=self.factory.data_source,
+            user=self.factory.user,
+            title="売上定義",
+            content="売上は orders.amount の合計",
+        )
+        db.session.add_all([pair, instruction])
         db.session.commit()
 
         mock_schema.return_value = [
@@ -135,35 +168,22 @@ class TestAiGenerateQuery(BaseTestCase):
                 "columns": [{"name": "amount", "type": "numeric"}, {"name": "created_at", "type": "timestamp"}],
             }
         ]
-        mock_post.return_value = Mock(
-            status_code=200,
-            json=Mock(
-                return_value={
-                    "choices": [
-                        {
-                            "message": {
-                                "content": '{"query": "SELECT 1", "message": "ok"}'
-                            }
-                        }
-                    ]
-                }
-            ),
-        )
+        mock_generate.return_value = {
+            "query": "SELECT 1",
+            "message": "ok",
+            "validated": True,
+            "reasoning": "plan",
+        }
 
-        with patch("redash.handlers.ai.generate_with_validation") as mock_generate:
-            mock_generate.side_effect = lambda **kwargs: (
-                "SELECT 1",
-                "ok",
-                True,
-            )
-            rv = self.make_request(
-                "post",
-                "/api/ai/generate_query",
-                data={"prompt": "月別売上を出して", "data_source_id": self.factory.data_source.id},
-            )
+        rv = self.make_request(
+            "post",
+            "/api/ai/generate_query",
+            data={"prompt": "月別売上を出して", "data_source_id": self.factory.data_source.id},
+        )
         self.assertEqual(rv.status_code, 200)
-        system_prompt = mock_generate.call_args[1]["messages"][0]["content"]
-        self.assertIn("月別売上", system_prompt)
+        context = mock_generate.call_args[1]["context"]
+        self.assertIn("月別売上", context)
+        self.assertIn("売上定義", context)
 
 
 class TestAiSqlPairApi(BaseTestCase):
@@ -207,6 +227,49 @@ class TestAiSqlPairApi(BaseTestCase):
 
         pairs = retrieve_sql_pairs(self.factory.data_source.id, self.factory.org.id, "月別の売上")
         self.assertEqual(pairs[0].question, "月別売上")
+
+
+class TestAiInstructionApi(BaseTestCase):
+    def test_create_and_list_instructions(self):
+        rv = self.make_request(
+            "post",
+            "/api/ai/instructions",
+            data={
+                "data_source_id": self.factory.data_source.id,
+                "title": "売上定義",
+                "content": "売上は orders.amount の合計",
+            },
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(rv.json["title"], "売上定義")
+
+        rv = self.make_request(
+            "get",
+            "/api/ai/instructions?data_source_id={}".format(self.factory.data_source.id),
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(len(rv.json), 1)
+
+    def test_retrieve_instructions_ranks_by_prompt(self):
+        instruction1 = AiInstruction(
+            org=self.factory.org,
+            data_source=self.factory.data_source,
+            user=self.factory.user,
+            title="顧客",
+            content="customers テーブルを使う",
+        )
+        instruction2 = AiInstruction(
+            org=self.factory.org,
+            data_source=self.factory.data_source,
+            user=self.factory.user,
+            title="売上",
+            content="orders.amount を集計する",
+        )
+        db.session.add_all([instruction1, instruction2])
+        db.session.commit()
+
+        instructions = retrieve_instructions(self.factory.data_source.id, self.factory.org.id, "月別売上")
+        self.assertEqual(instructions[0].title, "売上")
 
 
 class TestAiOrganizationSettings(BaseTestCase):

@@ -40,24 +40,35 @@ export default function AiQueryDrawer({
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [sqlPairs, setSqlPairs] = useState([]);
+  const [instructions, setInstructions] = useState([]);
   const [savingPairKey, setSavingPairKey] = useState(null);
+  const [instructionTitle, setInstructionTitle] = useState("");
+  const [instructionContent, setInstructionContent] = useState("");
+  const [isSavingInstruction, setIsSavingInstruction] = useState(false);
   const listRef = useRef(null);
 
-  const loadSqlPairs = useCallback(() => {
+  const loadKnowledge = useCallback(() => {
     if (!dataSourceId) {
       setSqlPairs([]);
+      setInstructions([]);
       return Promise.resolve();
     }
-    return AiQuery.listSqlPairs(dataSourceId)
-      .then(data => setSqlPairs(data || []))
-      .catch(() => setSqlPairs([]));
+    return Promise.all([AiQuery.listSqlPairs(dataSourceId), AiQuery.listInstructions(dataSourceId)])
+      .then(([pairs, rules]) => {
+        setSqlPairs(pairs || []);
+        setInstructions(rules || []);
+      })
+      .catch(() => {
+        setSqlPairs([]);
+        setInstructions([]);
+      });
   }, [dataSourceId]);
 
   useEffect(() => {
     if (visible) {
-      loadSqlPairs();
+      loadKnowledge();
     }
-  }, [visible, loadSqlPairs]);
+  }, [visible, loadKnowledge]);
 
   useEffect(() => {
     if (listRef.current) {
@@ -84,6 +95,7 @@ export default function AiQueryDrawer({
       schema,
       syntax: syntax || "sql",
       validate: Boolean(dataSourceId),
+      use_reasoning: true,
     })
       .then(data => {
         const queryText = data.query || "";
@@ -99,6 +111,7 @@ export default function AiQueryDrawer({
             query: queryText,
             question: text,
             validated: data.validated,
+            reasoning: data.reasoning,
           },
         ]);
       })
@@ -123,12 +136,12 @@ export default function AiQueryDrawer({
       })
         .then(() => {
           notification.success("SQL例を保存しました。");
-          loadSqlPairs();
+          loadKnowledge();
         })
         .catch(error => notification.error(getErrorMessage(error)))
         .finally(() => setSavingPairKey(null));
     },
-    [dataSourceId, loadSqlPairs]
+    [dataSourceId, loadKnowledge]
   );
 
   const deleteSqlPair = useCallback(
@@ -136,11 +149,44 @@ export default function AiQueryDrawer({
       AiQuery.deleteSqlPair(pairId)
         .then(() => {
           notification.success("SQL例を削除しました。");
-          loadSqlPairs();
+          loadKnowledge();
         })
         .catch(error => notification.error(getErrorMessage(error)));
     },
-    [loadSqlPairs]
+    [loadKnowledge]
+  );
+
+  const saveInstruction = useCallback(() => {
+    const content = instructionContent.trim();
+    if (!dataSourceId || !content || isSavingInstruction) {
+      return;
+    }
+    setIsSavingInstruction(true);
+    AiQuery.createInstruction({
+      data_source_id: dataSourceId,
+      title: instructionTitle.trim() || undefined,
+      content,
+    })
+      .then(() => {
+        notification.success("ビジネスルールを保存しました。");
+        setInstructionTitle("");
+        setInstructionContent("");
+        loadKnowledge();
+      })
+      .catch(error => notification.error(getErrorMessage(error)))
+      .finally(() => setIsSavingInstruction(false));
+  }, [dataSourceId, instructionContent, instructionTitle, isSavingInstruction, loadKnowledge]);
+
+  const deleteInstruction = useCallback(
+    instructionId => {
+      AiQuery.deleteInstruction(instructionId)
+        .then(() => {
+          notification.success("ビジネスルールを削除しました。");
+          loadKnowledge();
+        })
+        .catch(error => notification.error(getErrorMessage(error)));
+    },
+    [loadKnowledge]
   );
 
   return (
@@ -156,13 +202,16 @@ export default function AiQueryDrawer({
         <div className="ai-query-drawer-messages" ref={listRef}>
           {messages.length === 0 && (
             <div className="ai-query-drawer-empty">
-              作りたいクエリを日本語で入力してください。左のスキーマ（テーブル・カラム）を参照して生成します。
+              作りたいクエリを日本語で入力してください。関連テーブルとビジネスルールを参照して生成します。
               {schema.length > 0 && <div className="m-t-10">読み込み済みテーブル: {schema.length} 件</div>}
               {schema.length === 0 && (
                 <div className="m-t-10">スキーマ未取得です。左ペインのテーブル一覧が表示されてから送信してください。</div>
               )}
               {dataSourceId && sqlPairs.length > 0 && (
-                <div className="m-t-10">登録済み SQL 例: {sqlPairs.length} 件（類似する例を参考に生成します）</div>
+                <div className="m-t-10">登録済み SQL 例: {sqlPairs.length} 件</div>
+              )}
+              {dataSourceId && instructions.length > 0 && (
+                <div className="m-t-10">登録済みビジネスルール: {instructions.length} 件</div>
               )}
               {currentUser.isAdmin && (
                 <div className="m-t-10">
@@ -180,6 +229,9 @@ export default function AiQueryDrawer({
                   item.isError ? " ai-query-drawer-message-error" : ""
                 }`}>
                 <div className="ai-query-drawer-message-content">{item.content}</div>
+                {item.reasoning && (
+                  <pre className="ai-query-drawer-reasoning">{item.reasoning}</pre>
+                )}
                 {item.query && (
                   <React.Fragment>
                     <pre className="ai-query-drawer-query">{item.query}</pre>
@@ -207,17 +259,55 @@ export default function AiQueryDrawer({
             </div>
           )}
         </div>
-        {dataSourceId && sqlPairs.length > 0 && (
-          <div className="ai-query-drawer-pairs m-t-10">
-            <div className="ai-query-drawer-pairs-title">SQL 例</div>
-            {sqlPairs.slice(0, 5).map(pair => (
-              <div key={pair.id} className="ai-query-drawer-pair-item">
-                <div className="ai-query-drawer-pair-question">{pair.question}</div>
-                <Button size="small" danger onClick={() => deleteSqlPair(pair.id)}>
+        {dataSourceId && (
+          <div className="ai-query-drawer-knowledge m-t-10">
+            <div className="ai-query-drawer-pairs-title">ビジネスルール</div>
+            {instructions.map(instruction => (
+              <div key={instruction.id} className="ai-query-drawer-pair-item">
+                <div className="ai-query-drawer-pair-question">
+                  {instruction.title || instruction.content}
+                </div>
+                <Button size="small" danger onClick={() => deleteInstruction(instruction.id)}>
                   削除
                 </Button>
               </div>
             ))}
+            <Input
+              className="m-t-5"
+              value={instructionTitle}
+              onChange={e => setInstructionTitle(e.target.value)}
+              placeholder="ルール名（任意）"
+              disabled={isSavingInstruction}
+            />
+            <Input.TextArea
+              className="m-t-5"
+              value={instructionContent}
+              onChange={e => setInstructionContent(e.target.value)}
+              placeholder="例: 売上は orders.amount の合計。status=4 は返金済みなので除外"
+              autoSize={{ minRows: 2, maxRows: 4 }}
+              disabled={isSavingInstruction}
+            />
+            <Button
+              className="m-t-5"
+              block
+              loading={isSavingInstruction}
+              disabled={!instructionContent.trim()}
+              onClick={saveInstruction}>
+              ルールを追加
+            </Button>
+            {sqlPairs.length > 0 && (
+              <React.Fragment>
+                <div className="ai-query-drawer-pairs-title m-t-15">SQL 例</div>
+                {sqlPairs.slice(0, 5).map(pair => (
+                  <div key={pair.id} className="ai-query-drawer-pair-item">
+                    <div className="ai-query-drawer-pair-question">{pair.question}</div>
+                    <Button size="small" danger onClick={() => deleteSqlPair(pair.id)}>
+                      削除
+                    </Button>
+                  </div>
+                ))}
+              </React.Fragment>
+            )}
           </div>
         )}
         <div className="ai-query-drawer-input">
