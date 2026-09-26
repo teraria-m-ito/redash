@@ -1235,7 +1235,7 @@ class AiSqlPair(TimestampMixin, BelongsToOrgMixin, db.Model):
     user_id = Column(key_type("User"), db.ForeignKey("users.id"))
     user = db.relationship(User, backref="ai_sql_pairs")
     question = Column(db.Text, nullable=False)
-    query = Column(db.Text, nullable=False)
+    query_text = Column("query", db.Text, nullable=False)
 
     __tablename__ = "ai_sql_pairs"
     __table_args__ = (
@@ -1252,7 +1252,7 @@ class AiSqlPair(TimestampMixin, BelongsToOrgMixin, db.Model):
             "id": self.id,
             "data_source_id": self.data_source_id,
             "question": self.question,
-            "query": self.query,
+            "query": self.query_text,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "user": {

@@ -82,7 +82,7 @@ class TestSchemaToPromptText(TestCase):
 
 class TestSqlPairs(TestCase):
     def test_format_sql_pairs_for_prompt(self):
-        pair = Mock(question="件数", query="SELECT COUNT(*) FROM orders")
+        pair = Mock(question="件数", query_text="SELECT COUNT(*) FROM orders")
         text = format_sql_pairs_for_prompt([pair])
         self.assertIn("件数", text)
         self.assertIn("SELECT COUNT(*) FROM orders", text)
@@ -150,7 +150,7 @@ class TestAiGenerateQuery(BaseTestCase):
             data_source=self.factory.data_source,
             user=self.factory.user,
             question="月別売上",
-            query="SELECT date_trunc('month', created_at), SUM(amount) FROM public.orders GROUP BY 1",
+            query_text="SELECT date_trunc('month', created_at), SUM(amount) FROM public.orders GROUP BY 1",
         )
         instruction = AiInstruction(
             org=self.factory.org,
@@ -213,14 +213,14 @@ class TestAiSqlPairApi(BaseTestCase):
             data_source=self.factory.data_source,
             user=self.factory.user,
             question="顧客一覧",
-            query="SELECT * FROM customers",
+            query_text="SELECT * FROM customers",
         )
         pair2 = AiSqlPair(
             org=self.factory.org,
             data_source=self.factory.data_source,
             user=self.factory.user,
             question="月別売上",
-            query="SELECT 1 FROM orders",
+            query_text="SELECT 1 FROM orders",
         )
         db.session.add_all([pair1, pair2])
         db.session.commit()

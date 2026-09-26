@@ -47,7 +47,7 @@ class AiSqlPairListResource(BaseResource):
             data_source=data_source,
             user=self.current_user,
             question=question,
-            query=query,
+            query_text=query,
         )
         models.db.session.add(pair)
         models.db.session.commit()
@@ -77,14 +77,14 @@ class AiSqlPairResource(BaseResource):
         params = project(req, ("question", "query"))
 
         question = (params.get("question") or pair.question).strip()
-        query = (params.get("query") or pair.query).strip()
+        query = (params.get("query") or pair.query_text).strip()
         if not question:
             abort(400, message="質問を入力してください。")
         if not query:
             abort(400, message="クエリを入力してください。")
 
         pair.question = question
-        pair.query = query
+        pair.query_text = query
         models.db.session.add(pair)
         models.db.session.commit()
 

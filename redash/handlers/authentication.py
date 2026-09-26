@@ -273,6 +273,8 @@ def client_config():
     if current_user.has_permission("admin") and current_org.get_setting("beacon_consent") is None:
         client_config["showBeaconConsentMessage"] = True
 
+    ai_api_url = (current_org.get_setting("ai_api_url", raise_on_missing=False) or "").strip()
+
     defaults = {
         "allowScriptsInUserInput": settings.ALLOW_SCRIPTS_IN_USER_INPUT,
         "showPermissionsControl": current_org.get_setting("feature_show_permissions_control"),
@@ -290,6 +292,7 @@ def client_config():
         "pageSize": settings.PAGE_SIZE,
         "pageSizeOptions": settings.PAGE_SIZE_OPTIONS,
         "tableCellMaxJSONSize": settings.TABLE_CELL_MAX_JSON_SIZE,
+        "aiEnabled": bool(ai_api_url),
     }
 
     client_config.update(defaults)

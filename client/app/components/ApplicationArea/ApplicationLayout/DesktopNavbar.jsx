@@ -6,7 +6,7 @@ import PlainButton from "@/components/PlainButton";
 import HelpTrigger from "@/components/HelpTrigger";
 import CreateDashboardDialog from "@/components/dashboards/CreateDashboardDialog";
 import { useCurrentRoute } from "@/components/ApplicationArea/Router";
-import { Auth, currentUser } from "@/services/auth";
+import { Auth, currentUser, clientConfig } from "@/services/auth";
 import settingsMenu from "@/services/settingsMenu";
 import logoUrl from "@/assets/images/redash_icon_small.png";
 
@@ -72,7 +72,7 @@ export default function DesktopNavbar() {
   const canCreateQuery = currentUser.hasPermission("create_query");
   const canCreateDashboard = currentUser.hasPermission("create_dashboard");
   const canCreateAlert = currentUser.hasPermission("list_alerts");
-  const canCreateInsight = currentUser.hasPermission("list_insights");
+  const canCreateInsight = clientConfig.aiEnabled && currentUser.hasPermission("list_insights");
 
   return (
     <nav className="desktop-navbar">
@@ -109,7 +109,7 @@ export default function DesktopNavbar() {
             </Link>
           </Menu.Item>
         )}
-        {currentUser.hasPermission("list_insights") && (
+        {clientConfig.aiEnabled && currentUser.hasPermission("list_insights") && (
           <Menu.Item key="insights" className={activeState.insights ? "navbar-active-item" : null}>
             <Link href="insights">
               <BulbOutlinedIcon aria-label="Insights navigation button" />

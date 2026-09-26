@@ -104,7 +104,7 @@ def score_text_match(text, tokens):
 
 
 def score_sql_pair(pair, tokens):
-    return score_text_match(pair.question, tokens) + score_text_match(pair.query, tokens)
+    return score_text_match(pair.question, tokens) + score_text_match(pair.query_text, tokens)
 
 
 def score_instruction(instruction, tokens):
@@ -240,7 +240,7 @@ def format_sql_pairs_for_prompt(pairs):
         lines.append("例{}:".format(index))
         lines.append("質問: {}".format(pair.question))
         lines.append("SQL:")
-        lines.append(pair.query)
+        lines.append(pair.query_text)
         lines.append("")
     return "\n".join(lines).strip()
 

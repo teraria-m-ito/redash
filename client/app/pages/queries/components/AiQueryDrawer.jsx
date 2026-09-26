@@ -2,6 +2,7 @@ import { get } from "lodash";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import Button from "antd/lib/button";
+import Collapse from "antd/lib/collapse";
 import Drawer from "antd/lib/drawer";
 import Input from "antd/lib/input";
 import Spin from "antd/lib/spin";
@@ -26,6 +27,52 @@ function getErrorMessage(error) {
     "クエリの生成に失敗しました。"
   );
 }
+
+function SqlPairItem({ pair, onDelete }) {
+  return (
+    <div className="ai-query-drawer-sql-pair-item">
+      <div className="ai-query-drawer-sql-pair-body">
+        <div className="ai-query-drawer-sql-pair-question">{pair.question}</div>
+        <pre className="ai-query-drawer-sql-pair-query">{pair.query}</pre>
+      </div>
+      <Button size="small" danger onClick={() => onDelete(pair.id)}>
+        削除
+      </Button>
+    </div>
+  );
+}
+
+SqlPairItem.propTypes = {
+  pair: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    question: PropTypes.string.isRequired,
+    query: PropTypes.string.isRequired,
+  }).isRequired,
+  onDelete: PropTypes.func.isRequired,
+};
+
+function InstructionItem({ instruction, onDelete }) {
+  return (
+    <div className="ai-query-drawer-instruction-item">
+      <div className="ai-query-drawer-instruction-body">
+        {instruction.title && <div className="ai-query-drawer-instruction-title">{instruction.title}</div>}
+        <div className="ai-query-drawer-instruction-content">{instruction.content}</div>
+      </div>
+      <Button size="small" danger onClick={() => onDelete(instruction.id)}>
+        削除
+      </Button>
+    </div>
+  );
+}
+
+InstructionItem.propTypes = {
+  instruction: PropTypes.shape({
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+    title: PropTypes.string,
+    content: PropTypes.string.isRequired,
+  }).isRequired,
+  onDelete: PropTypes.func.isRequired,
+};
 
 export default function AiQueryDrawer({
   visible,
@@ -53,15 +100,19 @@ export default function AiQueryDrawer({
       setInstructions([]);
       return Promise.resolve();
     }
-    return Promise.all([AiQuery.listSqlPairs(dataSourceId), AiQuery.listInstructions(dataSourceId)])
-      .then(([pairs, rules]) => {
-        setSqlPairs(pairs || []);
-        setInstructions(rules || []);
-      })
-      .catch(() => {
+    const pairsPromise = AiQuery.listSqlPairs(dataSourceId)
+      .then(pairs => setSqlPairs(pairs || []))
+      .catch(error => {
         setSqlPairs([]);
-        setInstructions([]);
+        notification.error(getErrorMessage(error));
       });
+    const instructionsPromise = AiQuery.listInstructions(dataSourceId)
+      .then(rules => setInstructions(rules || []))
+      .catch(error => {
+        setInstructions([]);
+        notification.error(getErrorMessage(error));
+      });
+    return Promise.all([pairsPromise, instructionsPromise]);
   }, [dataSourceId]);
 
   useEffect(() => {
@@ -134,8 +185,16 @@ export default function AiQueryDrawer({
         question,
         query,
       })
-        .then(() => {
+        .then(created => {
           notification.success("SQL例を保存しました。");
+          if (created && created.id) {
+            setSqlPairs(current => {
+              if (current.some(item => item.id === created.id)) {
+                return current;
+              }
+              return [created, ...current];
+            });
+          }
           loadKnowledge();
         })
         .catch(error => notification.error(getErrorMessage(error)))
@@ -167,10 +226,18 @@ export default function AiQueryDrawer({
       title: instructionTitle.trim() || undefined,
       content,
     })
-      .then(() => {
+      .then(created => {
         notification.success("ビジネスルールを保存しました。");
         setInstructionTitle("");
         setInstructionContent("");
+        if (created && created.id) {
+          setInstructions(current => {
+            if (current.some(item => item.id === created.id)) {
+              return current;
+            }
+            return [created, ...current];
+          });
+        }
         loadKnowledge();
       })
       .catch(error => notification.error(getErrorMessage(error)))
@@ -259,57 +326,6 @@ export default function AiQueryDrawer({
             </div>
           )}
         </div>
-        {dataSourceId && (
-          <div className="ai-query-drawer-knowledge m-t-10">
-            <div className="ai-query-drawer-pairs-title">ビジネスルール</div>
-            {instructions.map(instruction => (
-              <div key={instruction.id} className="ai-query-drawer-pair-item">
-                <div className="ai-query-drawer-pair-question">
-                  {instruction.title || instruction.content}
-                </div>
-                <Button size="small" danger onClick={() => deleteInstruction(instruction.id)}>
-                  削除
-                </Button>
-              </div>
-            ))}
-            <Input
-              className="m-t-5"
-              value={instructionTitle}
-              onChange={e => setInstructionTitle(e.target.value)}
-              placeholder="ルール名（任意）"
-              disabled={isSavingInstruction}
-            />
-            <Input.TextArea
-              className="m-t-5"
-              value={instructionContent}
-              onChange={e => setInstructionContent(e.target.value)}
-              placeholder="例: 売上は orders.amount の合計。status=4 は返金済みなので除外"
-              autoSize={{ minRows: 2, maxRows: 4 }}
-              disabled={isSavingInstruction}
-            />
-            <Button
-              className="m-t-5"
-              block
-              loading={isSavingInstruction}
-              disabled={!instructionContent.trim()}
-              onClick={saveInstruction}>
-              ルールを追加
-            </Button>
-            {sqlPairs.length > 0 && (
-              <React.Fragment>
-                <div className="ai-query-drawer-pairs-title m-t-15">SQL 例</div>
-                {sqlPairs.slice(0, 5).map(pair => (
-                  <div key={pair.id} className="ai-query-drawer-pair-item">
-                    <div className="ai-query-drawer-pair-question">{pair.question}</div>
-                    <Button size="small" danger onClick={() => deleteSqlPair(pair.id)}>
-                      削除
-                    </Button>
-                  </div>
-                ))}
-              </React.Fragment>
-            )}
-          </div>
-        )}
         <div className="ai-query-drawer-input">
           <Input.TextArea
             value={prompt}
@@ -335,6 +351,67 @@ export default function AiQueryDrawer({
             data-test="AiQuerySendButton">
             送信
           </Button>
+        </div>
+        <div className="ai-query-drawer-knowledge">
+          <Collapse defaultActiveKey={[]} bordered={false}>
+            <Collapse.Panel header={`ビジネスルール（${instructions.length}件）`} key="rules">
+              {!dataSourceId ? (
+                <div className="ai-query-drawer-knowledge-hint">
+                  左ペインでデータソースを選択すると、ビジネスルールの登録・確認ができます。
+                </div>
+              ) : (
+                <React.Fragment>
+                  {instructions.length === 0 ? (
+                    <div className="ai-query-drawer-knowledge-hint m-b-5">登録済みのルールはありません。</div>
+                  ) : (
+                    instructions.map(instruction => (
+                      <InstructionItem
+                        key={instruction.id}
+                        instruction={instruction}
+                        onDelete={deleteInstruction}
+                      />
+                    ))
+                  )}
+                  <Input
+                    className="m-t-5"
+                    value={instructionTitle}
+                    onChange={e => setInstructionTitle(e.target.value)}
+                    placeholder="ルール名（任意）"
+                    disabled={isSavingInstruction}
+                  />
+                  <Input.TextArea
+                    className="m-t-5"
+                    value={instructionContent}
+                    onChange={e => setInstructionContent(e.target.value)}
+                    placeholder="例: 売上は orders.amount の合計。status=4 は返金済みなので除外"
+                    autoSize={{ minRows: 2, maxRows: 4 }}
+                    disabled={isSavingInstruction}
+                  />
+                  <Button
+                    className="m-t-5"
+                    block
+                    loading={isSavingInstruction}
+                    disabled={!instructionContent.trim()}
+                    onClick={saveInstruction}>
+                    ルールを追加
+                  </Button>
+                </React.Fragment>
+              )}
+            </Collapse.Panel>
+            <Collapse.Panel header={`SQL 例（${sqlPairs.length}件）`} key="pairs">
+              {!dataSourceId ? (
+                <div className="ai-query-drawer-knowledge-hint">
+                  左ペインでデータソースを選択すると、SQL 例の確認ができます。
+                </div>
+              ) : sqlPairs.length === 0 ? (
+                <div className="ai-query-drawer-knowledge-hint">
+                  登録済みの SQL 例はありません。生成結果の「例として保存」ボタンから追加できます。
+                </div>
+              ) : (
+                sqlPairs.map(pair => <SqlPairItem key={pair.id} pair={pair} onDelete={deleteSqlPair} />)
+              )}
+            </Collapse.Panel>
+          </Collapse>
         </div>
       </div>
     </Drawer>

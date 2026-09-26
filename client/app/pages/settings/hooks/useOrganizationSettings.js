@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import recordEvent from "@/services/recordEvent";
 import OrgSettings from "@/services/organizationSettings";
 import useImmutableCallback from "@/lib/hooks/useImmutableCallback";
-import { updateClientConfig } from "@/services/auth";
+import { clientConfig, updateClientConfig } from "@/services/auth";
 
 export default function useOrganizationSettings({ onError }) {
   const [settings, setSettings] = useState({});
@@ -50,11 +50,18 @@ export default function useOrganizationSettings({ onError }) {
           const settings = get(response, "settings");
           setSettings(settings);
           setCurrentValues({ ...settings });
+          const aiApiUrl = (get(settings, "ai_api_url") || get(currentValues, "ai_api_url") || "").trim();
+          const nextAiEnabled = Boolean(aiApiUrl);
+          const previousAiEnabled = Boolean(clientConfig.aiEnabled);
           updateClientConfig({
             dateFormat: currentValues.date_format,
             timeFormat: currentValues.time_format,
             dateTimeFormat: `${currentValues.date_format} ${currentValues.time_format}`,
+            aiEnabled: nextAiEnabled,
           });
+          if (previousAiEnabled !== nextAiEnabled) {
+            window.location.reload();
+          }
         })
         .catch(handleError)
         .finally(() => setIsSaving(false));

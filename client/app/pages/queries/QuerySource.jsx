@@ -14,6 +14,7 @@ import recordEvent from "@/services/recordEvent";
 import { ExecutionStatus } from "@/services/query-result";
 import routes from "@/services/routes";
 import notification from "@/services/notification";
+import { clientConfig } from "@/services/auth";
 import * as queryFormat from "@/lib/queryFormat";
 
 import QueryPageHeader from "./components/QueryPageHeader";
@@ -291,11 +292,13 @@ function QuerySource(props) {
                         shortcut: isFormatQueryAvailable ? "mod+shift+f" : null,
                         onClick: formatQuery,
                       }}
-                      aiQueryButtonProps={{
-                        title: "AI Query",
-                        text: <span className="hidden-xs">AI Query</span>,
-                        onClick: () => setIsAiQueryOpen(true),
-                      }}
+                      aiQueryButtonProps={
+                        clientConfig.aiEnabled && {
+                          title: "AI Query",
+                          text: <span className="hidden-xs">AI Query</span>,
+                          onClick: () => setIsAiQueryOpen(true),
+                        }
+                      }
                       saveButtonProps={
                         queryFlags.canEdit && {
                           text: (
@@ -430,15 +433,17 @@ function QuerySource(props) {
           )}
         </div>
       </main>
-      <AiQueryDrawer
-        visible={isAiQueryOpen}
-        currentQuery={query.query}
-        dataSourceId={dataSource ? dataSource.id : null}
-        schema={schema}
-        syntax={querySyntax}
-        onClose={() => setIsAiQueryOpen(false)}
-        onApplyQuery={applyAiQuery}
-      />
+      {clientConfig.aiEnabled && (
+        <AiQueryDrawer
+          visible={isAiQueryOpen}
+          currentQuery={query.query}
+          dataSourceId={dataSource ? dataSource.id : query.data_source_id || null}
+          schema={schema}
+          syntax={querySyntax}
+          onClose={() => setIsAiQueryOpen(false)}
+          onApplyQuery={applyAiQuery}
+        />
+      )}
     </div>
   );
 }

@@ -21,19 +21,40 @@ const AiSettingKey = {
 };
 
 function ConnectionSettings({ values, onChange, loading }) {
+  const aiEnabled = Boolean((values[AiSettingKey.API_URL] || "").trim());
+
   return (
     <React.Fragment>
       <h3 className="m-t-0">AI接続</h3>
       <p className="text-muted">
-        Ollama は APIキーは空のままで構いません。モデル名は ollama list の名前を入れてください。
+        AI Query や Insight などで利用する LLM の接続先を設定します。ChatGPT（OpenAI）と Ollama のいずれかを選んで入力してください。
       </p>
+      <div className="text-muted m-b-15">
+        <p className="m-b-10">
+          <strong>ChatGPT（OpenAI）</strong>
+          <br />
+          API URL には <code>https://api.openai.com/v1</code> を入力します。APIキーには OpenAI の API キーを入力してください（必須）。モデル名には利用するモデル（例: <code>gpt-4o-mini</code>、<code>gpt-4o</code>）を入力します。
+        </p>
+        <p className="m-b-0">
+          <strong>Ollama</strong>
+          <br />
+          API URL には Ollama サーバーのチャット API（例: <code>http://host:11434/api/chat</code>）を入力します。APIキーは不要なので空のままで構いません。モデル名には <code>ollama list</code> で表示される名前（例: <code>llama3.2</code>）を入力します。
+        </p>
+      </div>
+      {!loading && (
+        <p className={aiEnabled ? "text-muted m-b-15" : "text-warning m-b-15"}>
+          {aiEnabled
+            ? "API URL が設定されているため、AI Query / Insights を表示します。"
+            : "API URL が未設定のため、保存後は AI Query / Insights を非表示にします。"}
+        </p>
+      )}
       <hr />
       <Form.Item label="API URL">
         {loading ? (
           <Skeleton.Input style={{ width: 400 }} active />
         ) : (
           <Input
-            placeholder="http://host:11434/api/chat"
+            placeholder="https://api.openai.com/v1 または http://host:11434/api/chat"
             value={values[AiSettingKey.API_URL]}
             onChange={e => onChange({ [AiSettingKey.API_URL]: e.target.value })}
             data-test="AiApiUrl"
@@ -45,7 +66,7 @@ function ConnectionSettings({ values, onChange, loading }) {
           <Skeleton.Input style={{ width: 400 }} active />
         ) : (
           <Input.Password
-            placeholder="Ollama は空で可"
+            placeholder="ChatGPT: APIキー / Ollama: 空で可"
             value={values[AiSettingKey.API_KEY]}
             onChange={e => onChange({ [AiSettingKey.API_KEY]: e.target.value })}
             data-test="AiApiKey"
@@ -57,7 +78,7 @@ function ConnectionSettings({ values, onChange, loading }) {
           <Skeleton.Input style={{ width: 400 }} active />
         ) : (
           <Input
-            placeholder="llama3.2"
+            placeholder="gpt-4o-mini または llama3.2"
             value={values[AiSettingKey.MODEL]}
             onChange={e => onChange({ [AiSettingKey.MODEL]: e.target.value })}
             data-test="AiModel"
