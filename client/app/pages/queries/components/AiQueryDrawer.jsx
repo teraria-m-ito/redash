@@ -93,6 +93,27 @@ export default function AiQueryDrawer({
   const [instructionContent, setInstructionContent] = useState("");
   const [isSavingInstruction, setIsSavingInstruction] = useState(false);
   const listRef = useRef(null);
+  const bodyElementRef = useRef(null);
+
+  // クエリ実行ショートカット（Mousetrap の bindGlobal）は document で拾うため、ここで止めないと改行できない
+  const stopShiftEnter = useCallback(event => {
+    if (event.key === "Enter" && event.shiftKey) {
+      event.stopPropagation();
+    }
+  }, []);
+
+  const bodyRef = useCallback(
+    element => {
+      if (bodyElementRef.current) {
+        bodyElementRef.current.removeEventListener("keydown", stopShiftEnter);
+      }
+      bodyElementRef.current = element;
+      if (element) {
+        element.addEventListener("keydown", stopShiftEnter);
+      }
+    },
+    [stopShiftEnter]
+  );
 
   const loadKnowledge = useCallback(() => {
     if (!dataSourceId) {
@@ -265,7 +286,7 @@ export default function AiQueryDrawer({
       width={420}
       className="ai-query-drawer"
       destroyOnClose={false}>
-      <div className="ai-query-drawer-body">
+      <div className="ai-query-drawer-body" ref={bodyRef}>
         <div className="ai-query-drawer-messages" ref={listRef}>
           {messages.length === 0 && (
             <div className="ai-query-drawer-empty">
@@ -330,14 +351,15 @@ export default function AiQueryDrawer({
           <Input.TextArea
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
-            placeholder="例: 月別の売上合計を出して"
+            placeholder="例: 月別の売上合計を出して（Enter で送信、Shift+Enter で改行）"
             autoSize={{ minRows: 3, maxRows: 6 }}
             disabled={isGenerating}
             onPressEnter={e => {
-              if (!e.shiftKey) {
-                e.preventDefault();
-                sendPrompt();
+              if (e.shiftKey || e.nativeEvent.isComposing || e.keyCode === 229) {
+                return;
               }
+              e.preventDefault();
+              sendPrompt();
             }}
             data-test="AiQueryPrompt"
           />
