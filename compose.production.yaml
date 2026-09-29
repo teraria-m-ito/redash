@@ -7,6 +7,9 @@ x-redash-service: &redash-service
     - redis
   env_file: /opt/redash/env
   restart: always
+  volumes:
+    # Local CSV データソース用（データソース設定の Base Directory にはコンテナ側の /data/csv を指定）
+    - /opt/redash/csv:/data/csv:ro
 
 services:
   server:
