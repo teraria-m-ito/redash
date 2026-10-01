@@ -1,0 +1,168 @@
+//
+// SQL Builder Logo
+// 100 x 100 px
+//
+
+@blue: #0645ad;
+@blue-dark: #003b9e;
+
+@db-fill: #f2f2f2;
+@db-highlight: #ffffff;
+
+@orange: #ff8500;
+@orange-light: #ff9d00;
+@orange-dark: #f36f00;
+
+@size: 100px;
+
+// --------------------------------------------------
+// Logo container
+// --------------------------------------------------
+
+#sqlb-logo {
+  position: relative;
+  width: @size;
+  height: @size;
+  overflow: hidden;
+  background: transparent;
+
+  // --------------------------------------------------
+  // Database
+  // --------------------------------------------------
+
+  .database {
+    position: absolute;
+    left: 4px;
+    top: 3px;
+    width: 79px;
+    height: 90px;
+
+    // Main database body
+    .db-body {
+      position: absolute;
+      left: 2px;
+      top: 10px;
+      width: 72px;
+      height: 68px;
+      background: @db-fill;
+      border-left: 5px solid @blue;
+      border-right: 5px solid @blue;
+      box-sizing: border-box;
+    }
+
+    // Top ellipse
+    .db-top {
+      position: absolute;
+      left: 2px;
+      top: 0;
+      width: 72px;
+      height: 28px;
+      background: @blue;
+      border-radius: 50%;
+      z-index: 3;
+
+      .db-top-inner {
+        position: absolute;
+        left: 5px;
+        right: 5px;
+        top: 5px;
+        bottom: 6px;
+        background: @db-highlight;
+        border-radius: 50%;
+      }
+    }
+
+    // Horizontal curved divider
+    .db-divider {
+      position: absolute;
+      left: 2px;
+      width: 72px;
+      height: 22px;
+      border-left: 5px solid @blue;
+      border-right: 5px solid @blue;
+      border-bottom: 5px solid @blue;
+      border-radius: 0 0 50% 50%;
+      box-sizing: border-box;
+      z-index: 4;
+    }
+
+    .divider-1 {
+      top: 23px;
+    }
+
+    .divider-2 {
+      top: 44px;
+    }
+
+    // Bottom curve
+    .db-bottom {
+      position: absolute;
+      left: 2px;
+      top: 64px;
+      width: 72px;
+      height: 26px;
+      background: @db-fill;
+      border-left: 5px solid @blue;
+      border-right: 5px solid @blue;
+      border-bottom: 5px solid @blue;
+      border-radius: 0 0 50% 50%;
+      box-sizing: border-box;
+      z-index: 3;
+    }
+  }
+
+  // --------------------------------------------------
+  // Bar chart
+  // --------------------------------------------------
+
+  .chart {
+    position: absolute;
+    left: 36px;
+    bottom: 1px;
+    width: 64px;
+    height: 80px;
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    z-index: 10;
+
+    .bar {
+      position: relative;
+      width: 20px;
+      background: @orange;
+      border: 2px solid @orange-light;
+      border-bottom-color: @orange-dark;
+      border-radius: 5px 5px 3px 3px;
+      box-sizing: border-box;
+      box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.3), inset -1px 0 0 rgba(220, 90, 0, 0.15);
+
+      // Small top highlight
+      &::before {
+        content: "";
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        top: 2px;
+        height: 2px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.22);
+      }
+    }
+
+    .bar-1 {
+      height: 34px;
+    }
+
+    .bar-2 {
+      height: 47px;
+    }
+
+    .bar-3 {
+      height: 61px;
+    }
+
+    .bar-4 {
+      height: 76px;
+    }
+  }
+}

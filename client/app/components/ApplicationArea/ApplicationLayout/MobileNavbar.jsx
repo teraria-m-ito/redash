@@ -8,7 +8,7 @@ import Menu from "antd/lib/menu";
 import Link from "@/components/Link";
 import { Auth, currentUser, clientConfig } from "@/services/auth";
 import settingsMenu from "@/services/settingsMenu";
-import logoUrl from "@/assets/images/redash_icon_small.png";
+import logoUrl from "@/assets/images/sqlb_icon_small.png";
 
 import "./MobileNavbar.less";
 
