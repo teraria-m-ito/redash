@@ -3,23 +3,24 @@
 // 100 x 100 px
 //
 
-@blue: #0645ad;
-@blue-dark: #003b9e;
-
-@db-fill: #f2f2f2;
-@db-highlight: #ffffff;
-
-@orange: #ff8500;
-@orange-light: #ff9d00;
-@orange-dark: #f36f00;
-
-@size: 100px;
-
 // --------------------------------------------------
 // Logo container
 // --------------------------------------------------
 
 #sqlb-logo {
+  // LESS の変数はグローバルで上書きされるため、inc/variables.less の @blue 等を壊さないようスコープ内に閉じる
+  @blue: #0645ad;
+  @blue-dark: #003b9e;
+
+  @db-fill: #f2f2f2;
+  @db-highlight: #ffffff;
+
+  @orange: #ff8500;
+  @orange-light: #ff9d00;
+  @orange-dark: #f36f00;
+
+  @size: 100px;
+
   position: relative;
   width: @size;
   height: @size;
