@@ -1,5 +1,398 @@
 # Change Log
 
+## 26.9.0
+
+Redash v26.9.0 includes important security fixes, a new Cloudflare D1 data source, improvements to number formatting and query runners, and updated dependencies and build tooling.
+
+We recommend upgrading all installations, particularly those shared by users with different data source permissions. Review the compatibility notes below before upgrading.
+
+### Security
+
+This release addresses 13 security advisories:
+
+| Severity | Change | Advisory |
+|---|---|---|
+| High | Prevent SQL injection through user email addresses included in query annotations. | [GHSA-vf3c-8663-w8pf](https://github.com/getredash/redash/security/advisories/GHSA-vf3c-8663-w8pf) |
+| High | Restrict query API keys and dashboard share keys to declared query-based dropdown dependencies. | [GHSA-gcw6-vrqh-rpfg](https://github.com/getredash/redash/security/advisories/GHSA-gcw6-vrqh-rpfg) |
+| High | Disable custom JavaScript visualizations by default. | [GHSA-g5q6-jghf-254r](https://github.com/getredash/redash/security/advisories/GHSA-g5q6-jghf-254r) |
+| High | Prevent view-only users from bypassing query execution restrictions through text-pattern parameters and undeclared placeholders. | [GHSA-v5m6-3vvm-h6gc](https://github.com/getredash/redash/security/advisories/GHSA-v5m6-3vvm-h6gc) |
+| High | Enforce access to underlying widget queries when duplicating dashboards. | [GHSA-vv3x-p6f3-rh5m](https://github.com/getredash/redash/security/advisories/GHSA-vv3x-p6f3-rh5m) |
+| High | Validate parameters and enforce data source permissions for parameterized queries executed through Query Results. | [GHSA-v43x-rgcc-wh77](https://github.com/getredash/redash/security/advisories/GHSA-v43x-rgcc-wh77) |
+| Medium | Verify query access and organization boundaries when updating alerts, and recheck access before manual evaluation. | [GHSA-5x53-q87f-qhvq](https://github.com/getredash/redash/security/advisories/GHSA-5x53-q87f-qhvq) |
+| Medium | Prevent disclosure of permanent query API keys through shared dashboards and align sharing controls with owner/admin permissions. | [GHSA-c56c-w395-v939](https://github.com/getredash/redash/security/advisories/GHSA-c56c-w395-v939) |
+| Medium | Require object modification permission to archive dashboards. | [GHSA-r536-vx74-p226](https://github.com/getredash/redash/security/advisories/GHSA-r536-vx74-p226) |
+| Medium | Block local filesystem access from DuckDB queries and prevent queries from changing the locked configuration. | [GHSA-cr68-3xxj-cg9f](https://github.com/getredash/redash/security/advisories/GHSA-cr68-3xxj-cg9f) |
+| Low | Require modification permission to list a query or dashboard's access control list. | [GHSA-rpvq-m6v3-4qx3](https://github.com/getredash/redash/security/advisories/GHSA-rpvq-m6v3-4qx3) |
+| Low | Require JSON query URLs to remain within the configured base URL's origin, preventing credentials from being forwarded to a different origin. | [GHSA-m723-r867-wfgw](https://github.com/getredash/redash/security/advisories/GHSA-m723-r867-wfgw) |
+| Low | Check access to underlying data sources when serving cached Query Results data. | [GHSA-8fm9-9p2c-9f37](https://github.com/getredash/redash/security/advisories/GHSA-8fm9-9p2c-9f37) |
+
+This release also includes:
+
+- Harden post-login redirects against external redirect bypasses ([CVE-2026-33213](https://github.com/getredash/redash/security/advisories/GHSA-rfgc-hc86-pxrv)).
+- Enforce user permissions and organization boundaries in Python query helpers, and strengthen restricted Python attribute and write guards ([#7759](https://github.com/getredash/redash/pull/7759), [#7757](https://github.com/getredash/redash/pull/7757)).
+- Update security-sensitive dependencies, including Authlib, cryptography, PyOpenSSL, Requests, PyJWT, Axios, and form-data ([#7768](https://github.com/getredash/redash/pull/7768), [#7816](https://github.com/getredash/redash/pull/7816), [#7817](https://github.com/getredash/redash/pull/7817), [#7717](https://github.com/getredash/redash/pull/7717)).
+
+### Features and improvements
+
+- **Cloudflare D1:** Add a query runner with API-token authentication and schema browsing ([#7550](https://github.com/getredash/redash/pull/7550)).
+- **Number formatting:** Configure thousands and decimal separators in organization settings. Deployment defaults can be set with `REDASH_THOUSANDS_SEPARATOR` and `REDASH_DECIMAL_SEPARATOR` ([#7749](https://github.com/getredash/redash/pull/7749)).
+- **Trino:** Add automatic query limits and query annotations. Annotations are enabled by default and can be disabled with `TRINO_ANNOTATE_QUERY=false` ([#7750](https://github.com/getredash/redash/pull/7750), [#7657](https://github.com/getredash/redash/pull/7657)).
+- **Databricks:** Add an optional "Use Query Annotation" setting, disabled by default. Annotations omit the job ID to preserve result-cache compatibility ([#7795](https://github.com/getredash/redash/pull/7795)).
+- **Charts:** Fix missing X- and Y-axis names ([#7701](https://github.com/getredash/redash/pull/7701)).
+- **Deployment:** Allow configuring the server's bind address with `REDASH_GUNICORN_BIND`. The default remains `[::]:5000` ([#7647](https://github.com/getredash/redash/pull/7647)).
+
+### Build and development
+
+- Migrate frontend dependency management from Yarn to pnpm, use Node.js 24 for frontend builds, and update TypeScript and frontend tooling ([#7651](https://github.com/getredash/redash/pull/7651)).
+- Migrate Python dependency management from Poetry to uv ([#7755](https://github.com/getredash/redash/pull/7755)).
+- Fix pnpm installation and update frontend formatting and build configuration ([#7670](https://github.com/getredash/redash/pull/7670), [#7786](https://github.com/getredash/redash/pull/7786)).
+- Add a release management script and fix backend formatting ([#7671](https://github.com/getredash/redash/pull/7671), [#7820](https://github.com/getredash/redash/pull/7820)).
+
+### Upgrading and compatibility
+
+Docker image: `redash/redash:26.9.0` (Linux amd64 and arm64).
+
+Back up your Redash metadata database and upgrade the web application, scheduler, and all workers together.
+
+**Custom JavaScript charts:** `REDASH_FEATURE_ALLOW_CUSTOM_JS_VISUALIZATIONS` now defaults to `false`. Existing custom charts stop executing unless the feature is explicitly enabled; saved definitions remain intact. An explicit `true` setting remains effective. Enable this only when chart authors are trusted to run code with viewers' session privileges. Reload open Redash pages after the upgrade.
+
+**Query permissions:** Queries using text-pattern parameters or undeclared placeholders now require full data source access. Python helpers and Query Results enforce access to referenced data sources. Query and dashboard keys can access only declared dropdown dependencies. Workflows that depended on the previous permission bypasses will fail authorization.
+
+**SQL annotations and execution logs:** User identity changes from `Username: <email>` to `user_id: <id>`, and execution logs use `user_id` instead of `username`. API-key execution uses safe server-generated identity labels rather than secret keys. SQL comments include only supported fields with validated values. Update integrations that parse database query logs or execution logs.
+
+**Dashboard sharing:** Owners and administrators can enable or disable public sharing. Viewers can still copy an already-enabled public sharing link. API users no longer receive a query's permanent API key in query responses.
+
+**DuckDB:** Queries that read or write local files are blocked. A new "Enable External Access" option controls broader external access and remains enabled by default; disabling it also restricts network access.
+
+**JSON data sources:** When a base URL is configured, query and pagination URLs must use the same scheme, hostname, and effective port. Review queries that intentionally call another origin.
+
+**Previously exposed credentials:** Upgrading does not revoke previously disclosed query API keys. Regenerate potentially exposed keys, including those obtained through shared dashboards; revoking a dashboard share alone does not revoke query keys. Review existing alert query assignments and subscriptions—the alert patch does not automatically clean up existing subscriptions or reauthorize scheduled notifications.
+
+**Database migrations:** No new migrations are included relative to v26.3.0. Installations upgrading from older versions should apply outstanding migrations using `docker compose run --rm server manage db upgrade`.
+
+Thanks to all contributors and security researchers who helped improve this release.
+
+[Full changelog](https://github.com/getredash/redash/compare/v26.3.0...v26.9.0)
+
+## 26.03.0
+
+* Fix regular expression warning ([#7650](https://github.com/getredash/redash/pull/7650))
+* Update Python version to 3.13 ([#7636](https://github.com/getredash/redash/pull/7636))
+* Add last 2 years, last 3 years to the Date Range list ([#7635](https://github.com/getredash/redash/pull/7635))
+* Update plotly.js to 3.3.1, react-pivottable to 0.11.0 ([#7634](https://github.com/getredash/redash/pull/7634))
+* Add pivot chart ([#7632](https://github.com/getredash/redash/pull/7632))
+* Aggregate y value for same x ([#7631](https://github.com/getredash/redash/pull/7631))
+* cli: add --json option to users list command ([#7624](https://github.com/getredash/redash/pull/7624))
+* Update packages for compatibility with setuptools 82 ([#7622](https://github.com/getredash/redash/pull/7622))
+* Fix Elasticsearch connector configuration key mismatch ([#7607](https://github.com/getredash/redash/pull/7607))
+* Support ipv6 for server in ipv6-only kubernetes cluster ([#7596](https://github.com/getredash/redash/pull/7596))
+* fix(destinations): Handle unicode characters in webhook notifications ([#7586](https://github.com/getredash/redash/pull/7586))
+* Add lineShape option for Line and Area charts ([#7582](https://github.com/getredash/redash/pull/7582))
+* Feature/catch notsupported exception ([#7573](https://github.com/getredash/redash/pull/7573))
+* Enhance dashboard parameter handling: persist updated values and apply saved parameters ([#7570](https://github.com/getredash/redash/pull/7570))
+* Update queries.latest_query_data on save ([#7560](https://github.com/getredash/redash/pull/7560))
+* Correct custom chart help text: use newPlot() ([#7557](https://github.com/getredash/redash/pull/7557))
+* SchemaBrowser: on column comment tooltip, show newlines correctly ([#7552](https://github.com/getredash/redash/pull/7552))
+* Query Serach: avoid concurrent search API request ([#7551](https://github.com/getredash/redash/pull/7551))
+* Advanced query search syntax for multi byte search ([#7546](https://github.com/getredash/redash/pull/7546))
+* Make details visualization configurable ([#7535](https://github.com/getredash/redash/pull/7535))
+* Update ace-builds/react-ace to the latest versions ([#7532](https://github.com/getredash/redash/pull/7532))
+* Fix/too many history replace state ([#7530](https://github.com/getredash/redash/pull/7530))
+* Add range slider to the chart ([#7525](https://github.com/getredash/redash/pull/7525))
+* Add "Missing and NULL values" option to scatter chart ([#7523](https://github.com/getredash/redash/pull/7523))
+* fix: webpack missing source-map warning for @plotly/msgbox-gl ([#7522](https://github.com/getredash/redash/pull/7522))
+* keep ordering on search ([#7520](https://github.com/getredash/redash/pull/7520))
+* Fix: null is not shown for text with "Allow HTML content" ([#7519](https://github.com/getredash/redash/pull/7519))
+* Fix stacking bar chart ([#7516](https://github.com/getredash/redash/pull/7516))
+* Update plotly.js to 3.1.0 ([#7514](https://github.com/getredash/redash/pull/7514))
+* Update Poetry to 2.1.4 ([#7509](https://github.com/getredash/redash/pull/7509))
+* Update from webpack4 to webpack5 ([#7507](https://github.com/getredash/redash/pull/7507))
+* Allow HTTP request line more than 4096 bytes ([#7506](https://github.com/getredash/redash/pull/7506))
+* Add "Last 10 years" option for dynamic date range ([#7422](https://github.com/getredash/redash/pull/7422))
+* Make favorite queries/dashboard order by starred at(favorited at) ([#7351](https://github.com/getredash/redash/pull/7351))
+* Fix height for mobile safari not to overlap URL bar ([#7334](https://github.com/getredash/redash/pull/7334))
+* Multi-org: format base path, not including protocol ([#7260](https://github.com/getredash/redash/pull/7260))
+* PostgreSQL
+  * PostgreSQL: Rely on information_schema.columns for views and foreign tables ([#7521](https://github.com/getredash/redash/pull/7521))
+  * PostgreSQL: allow connection parameters to be specified ([#7579](https://github.com/getredash/redash/pull/7579))
+  * changed pg.py has_privileges function to include special characters a… ([#7574](https://github.com/getredash/redash/pull/7574))
+  * Use standard PostgreSQL image and drop clean-all target ([#7555](https://github.com/getredash/redash/pull/7555))
+* MySQL
+  * MySQL: add column type, comment, and table comment on Schema Browser ([#7544](https://github.com/getredash/redash/pull/7544))
+  * Add charset option to RDS MySQL datasource ([#7616](https://github.com/getredash/redash/pull/7616))
+  * fix(mysql): Change default charset to utf8mb4 ([#7615](https://github.com/getredash/redash/pull/7615))
+* BigQuery
+  * BigQuery: show table description tooltip in Schema Browser ([#7543](https://github.com/getredash/redash/pull/7543))
+  * BigQuery: Remove "Job ID" metadata on annotaton to avoid cache misses ([#7541](https://github.com/getredash/redash/pull/7541))
+  * BigQuery: support multiple dataset locations ([#7540](https://github.com/getredash/redash/pull/7540))
+  * BigQuery: show column description(comment) on Schema Browser ([#7538](https://github.com/getredash/redash/pull/7538))
+* DuckDB
+  * Add duckdb support ([#7548](https://github.com/getredash/redash/pull/7548))
+  * duckdb: Show catalog (database) where applicable (e.g. Motherduck) ([#7599](https://github.com/getredash/redash/pull/7599))
+* Trino
+  * Serialize Trino ROW types as JSON objects with field names ([#7644](https://github.com/getredash/redash/pull/7644))
+  * added passing client_tags option to Trino plugin ([#7633](https://github.com/getredash/redash/pull/7633))
+  * Add impersonation option in trino datasource ([#7605](https://github.com/getredash/redash/pull/7605))
+* DB2
+  * Add ibm-db package to enable DB2 as datasource: ([#7581](https://github.com/getredash/redash/pull/7581))
+* Jira
+  * Update jql.py (jira datasource) to use jira api v3 updated. ([#7527](https://github.com/getredash/redash/pull/7527))
+* Snowflake
+  * Add private_key auth method to snowflake query runner ([#7371](https://github.com/getredash/redash/pull/7371))
+
+
+## 25.08.0
+
+* MongoDB: fix for empty username/password (Issue #7486) ([#7487](https://github.com/getredash/redash/pull/7487))
+* clickhouse: display data types ([#7490](https://github.com/getredash/redash/pull/7490))
+* Clickhouse: do not display INFORMATION_SCHEMA tables ([#7489](https://github.com/getredash/redash/pull/7489))
+* Sort Dashboard and Query tags by name([#7484](https://github.com/getredash/redash/pull/7484))
+* Add migration to set default alert selector([#7475](https://github.com/getredash/redash/pull/7475))
+* Make refresh cookie name configurable([#7473](https://github.com/getredash/redash/pull/7473))
+* Make NULL values visible([#7439](https://github.com/getredash/redash/pull/7439))
+* Fix: saving empty query with auto limit crashes([#7430](https://github.com/getredash/redash/pull/7430))
+* Push image using DOCKER_REPOSITORY([#7428](https://github.com/getredash/redash/pull/7428))
+* Update assertion method in JSON dumps test([#7424](https://github.com/getredash/redash/pull/7424))
+* Add translate="no" to html tag to prevent redash from translating and crashing([#7421](https://github.com/getredash/redash/pull/7421))
+* Update Azure Data Explorer query runner to latest version([#7411](https://github.com/getredash/redash/pull/7411))
+* Use 12-column layout for dashboard grid([#7396](https://github.com/getredash/redash/pull/7396))
+* Change BigQuery super class from BaseQueryRunner to BaseSQLQueryRunner([#7378](https://github.com/getredash/redash/pull/7378))
+* Upgrade prettier version to the same version that CI is using([#7367](https://github.com/getredash/redash/pull/7367))
+* Fix table item list ordering([#7366](https://github.com/getredash/redash/pull/7366))
+* Fix to make "show data labels" works([#7363](https://github.com/getredash/redash/pull/7363))
+* Upgrade plotly.js to version 2 to fix the UI crashing issue([#7359](https://github.com/getredash/redash/pull/7359))
+* TiDB: Exclude INFORMATION_SCHEMA([#7352](https://github.com/getredash/redash/pull/7352))
+* Sanitize NaN, Infinite, -Infinite causing error when saving as PostgreSQL JSON([#7348](https://github.com/getredash/redash/pull/7348))
+* Fix UnboundLocalError when checking alerts for query([#7346](https://github.com/getredash/redash/pull/7346))
+* BigQuery: Avoid too long(10 seconds) interval for bigquery api to get results([#7342](https://github.com/getredash/redash/pull/7342))
+* Add NULLS LAST option for query list ordering([#7341](https://github.com/getredash/redash/pull/7341))
+* TypeScript sourcemap for viz-lib([#7336](https://github.com/getredash/redash/pull/7336))
+* Fix the issue that chart(scatter, bubble, line...) having data with same x-value have wrong y-value([#7330](https://github.com/getredash/redash/pull/7330))
+* Partiallly Revert "Remove workaround from check_csrf() (#6919)" ([#7327](https://github.com/getredash/redash/pull/7327))
+* Make autocomplete always available([#7326](https://github.com/getredash/redash/pull/7326))
+* Include Plotly.js localization([#7323](https://github.com/getredash/redash/pull/7323))
+* Use absolute path for image resources([#7322](https://github.com/getredash/redash/pull/7322))
+* Build/Test
+  * Require vars.DOCKER_REPOSITORY to publish image([#7400](https://github.com/getredash/redash/pull/7400))
+  * ci: snapshot only on default branch([#7355](https://github.com/getredash/redash/pull/7355))
+  * Push by tag name for Docker repository "redash"([#7321](https://github.com/getredash/redash/pull/7321))
+* Dependencies
+  * Bump tar-fs from 2.1.1 to 2.1.2([#7385](https://github.com/getredash/redash/pull/7385))
+
+## 25.01.0
+
+* Support result reuse in Athena data sources ([\#7202](https://github.com/getredash/redash/pull/7202))
+* Handle the case when query runner configuration is an empty dict ([\#7258](https://github.com/getredash/redash/pull/7258))
+* BigQuery: add date, datetime type mapping ([\#7252](https://github.com/getredash/redash/pull/7252))
+* Build/Test
+  * Create workflow trigger for publishing release image ([\#7259](https://github.com/getredash/redash/pull/7259))
+* Dependencies
+  * Bump actions/upload-artifact from v3 to v4 ([\#7266](https://github.com/getredash/redash/pull/7266))
+  * Bump jinja2 from 3.1.4 to 3.1.5 ([\#7262](https://github.com/getredash/redash/pull/7262))
+  * Bump nanoid from 3.3.6 to 3.3.8 ([\#7249](https://github.com/getredash/redash/pull/7249))
+  * Bump to paramiko-3.4.1 ([\#7240](https://github.com/getredash/redash/pull/7240))
+
+## 24.12.0
+
+* Replace ptvsd with debugpy to match modern VS Code ([\#7234](https://github.com/getredash/redash/pull/7234))
+* Alerts: Only evaluate the next state if there's a value ([\#7222](https://github.com/getredash/redash/pull/7222))
+* Bring back version check & beacon reporting ([\#7211](https://github.com/getredash/redash/pull/7211))
+
+## 24.11.0
+
+* Alerts: don't crash when there is no data ([\#7208](https://github.com/getredash/redash/pull/7208))
+* Fix issue with scheduled queries ([\#7111](https://github.com/getredash/redash/pull/7111))
+* Correctly rehash queries in a migration ([\#7184](https://github.com/getredash/redash/pull/7184))
+* Use correct redis connection ([\#7077](https://github.com/getredash/redash/pull/7077))
+* Fix RQ wrongly moving jobs to FailedJobRegistry ([\#7186](https://github.com/getredash/redash/pull/7186))
+* Build/Test
+  * Move restyled to a github action ([\#7191](https://github.com/getredash/redash/pull/7191))
+  * Docker build: use heredoc for multi-line actions ([\#7210](https://github.com/getredash/redash/pull/7210))
+* Dependencies
+  * Bump cryptography from 42.0.8 to 43.0.1 ([\#7205](https://github.com/getredash/redash/pull/7205))
+  * Bump http-proxy-middleware from 2.0.6 to 2.0.7 ([\#7204](https://github.com/getredash/redash/pull/7204))
+  * Bump snowflake-connector-python from 3.12.0 to 3.12.3 ([\#7203](https://github.com/getredash/redash/pull/7203))
+  * Bump restrictedpython from 6.2 to 7.3 ([\#7181](https://github.com/getredash/redash/pull/7181))
+  * Bump elliptic from 6.5.7 to 6.6.0 ([\#7214](https://github.com/getredash/redash/pull/7214))
+
+## 24.10.0
+
+* Get rid of the strange looking 0 following "Running..." and "runtime" ([\#7099](https://github.com/getredash/redash/pull/7099))
+* Automatically remove orphans when running make up ([\#7164](https://github.com/getredash/redash/pull/7164))
+* Update `make up` to automatically initialize the db ([\#7161](https://github.com/getredash/redash/pull/7161))
+* Better error msg for token validation ([\#7159](https://github.com/getredash/redash/pull/7159))
+* Add REDASH_HOST to the docker compose file ([\#7157](https://github.com/getredash/redash/pull/7157))
+* Make schema refresh timeout configurable via env var ([\#7114](https://github.com/getredash/redash/pull/7114))
+* Dependencies 
+  * Update pymssql to fix some problems with macOS ARM64 (`2.3.1`) ([\#7140](https://github.com/getredash/redash/pull/7140))
+  * Bump body-parser from 1.20.1 to 1.20.3 ([\#7156](https://github.com/getredash/redash/pull/7156))
+  * Bump express from 4.19.2 to 4.21.0 ([\#7155](https://github.com/getredash/redash/pull/7155))
+  * Bump path-to-regexp from 3.2.0 to 3.3.0 ([\#7154](https://github.com/getredash/redash/pull/7154))
+  * Bump dompurify from 2.0.17 to 2.5.4 in /viz-lib ([\#7163](https://github.com/getredash/redash/pull/7163))
+
+## 24.09.0
+
+* Add option to choose color scheme for charts ([\#7062](https://github.com/getredash/redash/pull/7062))
+* Add data type to Athena query runner ([\#7112](https://github.com/getredash/redash/pull/7112))
+* Add data type to Redshift query runner ([\#7109](https://github.com/getredash/redash/pull/7109))
+* Fix a display order bug in MongoDB Query Runner ([\#7106](https://github.com/getredash/redash/pull/7106))
+* Add the option to take new custom version for Snapshot ([\#7096](https://github.com/getredash/redash/pull/7096))
+* Update certificates for RDS ([\#7100](https://github.com/getredash/redash/pull/7100))
+* Fix columns duplication on MongoDB Query Runner [\#6640](https://github.com/getredash/redash/pull/6640) ([\#6641](https://github.com/getredash/redash/pull/6641))
+* Get data size in memory for better logs ([\#7090](https://github.com/getredash/redash/pull/7090))
+* Adding Evaluate button for alerts to test them ([\#7032](https://github.com/getredash/redash/pull/7032))
+* Add min/max/first selector for alerts ([\#7076](https://github.com/getredash/redash/pull/7076))([\#7103](https://github.com/getredash/redash/pull/7103))
+* Add support for 'linux/arm64' platforms ([\#7094](https://github.com/getredash/redash/pull/7094))
+* Regressions
+  * Revert "Removed unused configuration class ([\#6682](https://github.com/getredash/redash/pull/6682))" ([\#7071](https://github.com/getredash/redash/pull/7071))
+  * Revert "Adding ability to fix table columns in place ([\#7019](https://github.com/getredash/redash/pull/7019))" ([\#7131](https://github.com/getredash/redash/pull/7131))
+* Dependencies
+  * Fix mismatched poetry version ([\#7122](https://github.com/getredash/redash/pull/7122))
+  * Bump cryptography to 42.0.x & snowflake-connector-python to 3.12.0 ([\#7097](https://github.com/getredash/redash/pull/7097))
+  * Bump webpack from 5.88.2 to 5.94.0 in /viz-lib ([\#7135](https://github.com/getredash/redash/pull/7135))
+  * Bump bootstrap to 3.4.1
+  * Bump sentry-sdk from 1.28.1 to 2.8.0 ([\#7069](https://github.com/getredash/redash/pull/7069))
+  * Bump python-rapidjson to 1.20 ([\#7126](https://github.com/getredash/redash/pull/7126))
+  * Bump elliptic to version 6.5.7 to fix a Dependabot warning ([\#7120](https://github.com/getredash/redash/pull/7120))
+
+## 24.08.0
+
+* Remove defaults set during schema upgrade/downgrade [\#7068](https://github.com/getredash/redash/pull/7068)  
+* Athena: Support Arbitrary Catalog ID [\#7059](https://github.com/getredash/redash/pull/7059)  
+* Add option to toggle sort on pie charts [\#7055](https://github.com/getredash/redash/pull/7055)  
+* Conditionally render tooltip for Edit alert button [\#7054](https://github.com/getredash/redash/pull/7054)  
+* Make Redash FIPS compatible [\#7049](https://github.com/getredash/redash/pull/7049)  
+* Add a label for Restyler's PR and Bump component version [\#7037](https://github.com/getredash/redash/pull/7037)  
+* Add new text pattern parameter input type [\#7025](https://github.com/getredash/redash/pull/7025)  
+* Adding ability to fix table columns in place [\#7019](https://github.com/getredash/redash/pull/7019) (_reverted in [#7131](https://github.com/getredash/redash/pull/7131)_)
+* Fixed frontend test deprecation warnings [\#7013](https://github.com/getredash/redash/pull/7013)  
+* Dependencies  
+  * Bump setuptools from 69.0.3 to 70.0.0 [\#7060](https://github.com/getredash/redash/pull/7060)  
+  * Bump requests to 2.32.3 [\#7057](https://github.com/getredash/redash/pull/7057)  
+  * Bump zipp from 3.17.0 to 3.19.1 [\#7051](https://github.com/getredash/redash/pull/7051)
+  * Bump certifi from 2023.11.17 to 2024.7.4 [\#7047](https://github.com/getredash/redash/pull/7047)
+  * Bump ws from 5.2.3 to 5.2.4 in /viz-lib [\#7040](https://github.com/getredash/redash/pull/7040)
+
+## 24.07.0
+
+* Map() implementation fix for chart labels [\#7022](https://github.com/getredash/redash/pull/7022)  
+* PostgreSQL: Only list tables where schema has USAGE permission [\#7000](https://github.com/getredash/redash/pull/7000)  
+* Update to Python 3.10 / Debian 12 [\#6991](https://github.com/getredash/redash/pull/6991)  
+* Dependencies  
+  * Bump ws from 5.2.3 to 5.2.4 [\#7021](https://github.com/getredash/redash/pull/7021)  
+  * Bump urllib3 from 1.26.18 to 1.26.19 [\#7020](https://github.com/getredash/redash/pull/7020)
+
+## 24.06.0 [broken]
+
+* Sync .nvmrc with workflow [\#6958](https://github.com/getredash/redash/pull/6958)
+* Fix 'str' object has no attribute 'pop' error when parsing query [\#6941](https://github.com/getredash/redash/pull/6941)
+* pgautoupgrade now does multi-arch builds [\#6939](https://github.com/getredash/redash/pull/6939)
+* Fix error serialization [\#6937](https://github.com/getredash/redash/pull/6937)
+* Dependencies  
+  * Bump requests from 2.31.0 to 2.32.0 [\#6981](https://github.com/getredash/redash/pull/6981)
+  * Bump pyodbc from 4.0.28 to 5.1.0 [\#6962](https://github.com/getredash/redash/pull/6962)
+  * Bump jinja2 from 3.1.3 to 3.1.4 [\#6951](https://github.com/getredash/redash/pull/6951)
+
+
+## 24.05.0 [broken]
+
+* Downgrade 'codecov-action' version from v4 to v3 [\#6930](https://github.com/getredash/redash/pull/6930)
+* Update widgets.py [\#6926](https://github.com/getredash/redash/pull/6926)
+* Use staticPath var to fetch unsupportedRedirect.js [\#6923](https://github.com/getredash/redash/pull/6923)
+* Remove workaround from check\_csrf() [\#6919](https://github.com/getredash/redash/pull/6919)
+* Bugfix: unable to parse elasticsearch index mappings [\#6918](https://github.com/getredash/redash/pull/6918)
+* Consistent rq status naming and handling [\#6913](https://github.com/getredash/redash/pull/6913)
+* Fix: aws elasticsearch typo [\#6899](https://github.com/getredash/redash/pull/6899)
+* Add pydeps Makefile target for installing Python dependencies [\#6890](https://github.com/getredash/redash/pull/6890)
+* Improve the text displayed when using the command line [\#6884](https://github.com/getredash/redash/pull/6884)
+* Fixed local setup to run on ARM64 [\#6877](https://github.com/getredash/redash/pull/6877)
+* Fix for coverage [\#6872](https://github.com/getredash/redash/pull/6872)
+* Use default docker repo name if variable is not defined [\#6870](https://github.com/getredash/redash/pull/6870)
+* Fix percy for a branch [\#6868](https://github.com/getredash/redash/pull/6868)
+* Update yarn to current latest in 1.22.x series [\#6858](https://github.com/getredash/redash/pull/6858)
+* Extend \`make up\` to automatically initialise the database [\#6855](https://github.com/getredash/redash/pull/6855)
+* Remove version check and all of the data sharing [\#6852](https://github.com/getredash/redash/pull/6852)
+* Automatically use the latest version of PostgreSQL [\#6851](https://github.com/getredash/redash/pull/6851)
+* Remove Qubole query runner [\#6848](https://github.com/getredash/redash/pull/6848)
+* Update "make clean" to remove Redash dev Docker images [\#6847](https://github.com/getredash/redash/pull/6847)
+* Handle timedelta in query results [\#6846](https://github.com/getredash/redash/pull/6846)
+* Autoformat hyperlinks in Slack alerts [\#6845](https://github.com/getredash/redash/pull/6845)
+* Flatten all level for MongoDB data source [\#6844](https://github.com/getredash/redash/pull/6844)
+* Filter widget results to fix tests during repeatable execution [\#6693](https://github.com/getredash/redash/pull/6693)
+* Reuse built frontend in ci, merge compose files [\#6674](https://github.com/getredash/redash/pull/6674)
+* Show pg and athena column comments and table descriptions as antd tooltip if they are defined [\#6582](https://github.com/getredash/redash/pull/6582)
+* Dependencies  
+  * Bump gunicorn to 22.0.0 [\#6900](https://github.com/getredash/redash/pull/6900)
+  * Bump sqlparse from 0.4.4 to 0.5.0 [\#6895](https://github.com/getredash/redash/pull/6895)
+  * Bump dnspython from 2.4.2 to 2.6.1 [\#6886](https://github.com/getredash/redash/pull/6886)
+  * Bump python-oracledb from 2.0.1 to 2.1.2 [\#6881](https://github.com/getredash/redash/pull/6881)
+  * Bump idna from 3.6 to 3.7 [\#6878](https://github.com/getredash/redash/pull/6878)
+  * Bump tar from 6.1.15 to 6.2.1 [\#6866](https://github.com/getredash/redash/pull/6866)
+  * Bump pymongo from 4.3.3 to 4.6.3 [\#6863](https://github.com/getredash/redash/pull/6863)
+  * Bump Rq from 1.9.0 to 1.16.1 [\#6902](https://github.com/getredash/redash/pull/6902)
+
+## 24.04.0 [broken]
+
+* Handle decimal types in query results [\#6837](https://github.com/getredash/redash/pull/6837)
+* BigQuery: use default for useQueryAnnotation option [\#6824](https://github.com/getredash/redash/pull/6824) 
+* Uncaught rejection promise error in Edit Visualization Dialog Modal [\#6794](https://github.com/getredash/redash/pull/6794)
+* Add RisingWave support [\#6776](https://github.com/getredash/redash/pull/6776)
+* Schedule may not contain an until key [\#6771](https://github.com/getredash/redash/pull/6771)
+* ClickHouse query runner: fixed error message [\#6764](https://github.com/getredash/redash/pull/6764)
+* Dependencies  
+  * Bump express from 4.18.2 to 4.19.2 [\#6838](https://github.com/getredash/redash/pull/6838)
+  * Bump webpack-dev-middleware from 5.3.3 to 5.3.4 [\#6829](https://github.com/getredash/redash/pull/6829)
+  * Bump jwcrypto from 1.5.1 to 1.5.6 [\#6816](https://github.com/getredash/redash/pull/6816)
+  * Bump follow-redirects from 1.15.5 to 1.15.6 in /viz-lib [\#6813](https://github.com/getredash/redash/pull/6813)
+  * Bump es5-ext from 0.10.53 to 0.10.63 in /viz-lib [\#6782](https://github.com/getredash/redash/pull/6782)
+
+## 24.03.0
+
+- Publish preview Docker image when release candidate is tagged [#6787](https://github.com/getredash/redash/pull/6787) [#6789](https://github.com/getredash/redash/pull/6789)
+
+## 24.02.0
+
+- Converted `text` columns to `jsonb` [#6687](https://github.com/getredash/redash/pull/6687) [#6713](https://github.com/getredash/redash/pull/6713)
+- Update query hash with parameters applied [#6683](https://github.com/getredash/redash/pull/6683)
+
+## 24.01.0
+
+- Prometheus:
+  - Add ssl support [#6657](https://github.com/getredash/redash/pull/6657)
+- Influxdb
+  - Add v2 query runner [#6646](https://github.com/getredash/redash/pull/6646)
+
+## 23.12.0
+
+- Add unarchive button to dashboard
+- Add fork dashboard function
+- Default to last used datasource
+- Regression fix
+  - Revert "Switch from numeral to numbro)" [#6595](https://github.com/getredash/redash/pull/6595)
+
+## 23.11.0
+
+- Add query Runner for Yandex Disk
+- New connection options for MySQL [#6538](https://github.com/getredash/redash/pull/6538)
+- Regression fix
+  - Revert "Render counter widgets using relative font size" [#6566](https://github.com/getredash/redash/pull/6566)
+
+## 23.10.0
+
+- Avoid updating query result for archived queries [#6488](https://github.com/getredash/redash/pull/6488)
+- Add Tinybird query runner [#5616](https://github.com/getredash/redash/pull/5616)
+
+## 23.09.0
+
+- Allow the X and Y tick format to be customized using a [D3 format string](https://redash.io/help/user-guide/visualizations/formatting-axis/) [#6370](https://github.com/getredash/redash/pull/6370)
+- Add support for a default alert template [#5996](https://github.com/getredash/redash/pull/5996)
+- New alert destination: Asana [#5753](https://github.com/getredash/redash/pull/5753)
+- Fix query refresh if name contain control characters [#5602](https://github.com/getredash/redash/pull/5602)
+- Allow RSA key used for JWT to be specified as a file path [#6271](https://github.com/getredash/redash/pull/6271)
+- Add 'click' functionality for Chart visualization
+
+
+
 ## V10.1.0 - 2021-11-23
 
 This release includes patches for three security vulnerabilities:

@@ -13,19 +13,14 @@ type OwnProps = {
   onChange?: (...args: any[]) => any;
 };
 
-type Props = OwnProps & typeof ColumnEditor.defaultProps;
-
-export default function ColumnEditor({ column, onChange }: Props) {
-  return (
-    <SharedColumnEditor
-      column={column}
-      onChange={onChange}
-      variant="details"
-      showSearch={false}
-    />
-  );
-}
-
-ColumnEditor.defaultProps = {
+const columnEditorDefaultProps = {
   onChange: (...args: any[]) => {},
 };
+
+type Props = OwnProps & typeof columnEditorDefaultProps;
+
+export default function ColumnEditor({ column, onChange }: Props) {
+  return <SharedColumnEditor column={column} onChange={onChange} variant="details" showSearch={false} />;
+}
+
+ColumnEditor.defaultProps = columnEditorDefaultProps;

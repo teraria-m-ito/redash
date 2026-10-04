@@ -43,12 +43,12 @@ export default function UserInfoForm(props) {
       }
 
       User.save(data)
-        .then(savedUser => {
+        .then((savedUser) => {
           successCallback("Saved.");
           handleChange(User.convertUserInfo(savedUser));
-          setFormKey(key => key + 1);
+          setFormKey((key) => key + 1);
         })
-        .catch(error => {
+        .catch((error) => {
           errorCallback(get(error, "response.data.message", "Failed saving."));
         });
     },
@@ -90,7 +90,7 @@ export default function UserInfoForm(props) {
                 title: "Groups",
                 type: "select",
                 mode: "multiple",
-                options: map(allGroups, group => ({ name: group.name, value: group.id })),
+                options: map(allGroups, (group) => ({ name: group.name, value: group.id })),
                 initialValue: user.groupIds,
                 loading: isLoadingGroups,
                 placeholder: isLoadingGroups ? "Loading..." : "",
@@ -121,7 +121,7 @@ export default function UserInfoForm(props) {
               initialValue: "",
             },
         ].filter(Boolean),
-        field => ({ readOnly: user.isDisabled, required: true, ...field })
+        (field) => ({ readOnly: user.isDisabled, required: true, ...field })
       ),
     [user, groups, allGroups, isLoadingGroups]
   );

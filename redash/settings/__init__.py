@@ -349,6 +349,7 @@ default_query_runners = [
     "redash.query_runner.oracle",
     "redash.query_runner.e6data",
     "redash.query_runner.risingwave",
+    "redash.query_runner.d1",
     "redash.query_runner.duckdb",
 ]
 
@@ -426,8 +427,9 @@ TABLE_CELL_MAX_JSON_SIZE = int(os.environ.get("REDASH_TABLE_CELL_MAX_JSON_SIZE",
 VERSION_CHECK = parse_boolean(os.environ.get("REDASH_VERSION_CHECK", "true"))
 FEATURE_DISABLE_REFRESH_QUERIES = parse_boolean(os.environ.get("REDASH_FEATURE_DISABLE_REFRESH_QUERIES", "false"))
 FEATURE_SHOW_QUERY_RESULTS_COUNT = parse_boolean(os.environ.get("REDASH_FEATURE_SHOW_QUERY_RESULTS_COUNT", "true"))
+# Custom chart code runs with the viewer's privileges. Enable only for trusted authors.
 FEATURE_ALLOW_CUSTOM_JS_VISUALIZATIONS = parse_boolean(
-    os.environ.get("REDASH_FEATURE_ALLOW_CUSTOM_JS_VISUALIZATIONS", "true")
+    os.environ.get("REDASH_FEATURE_ALLOW_CUSTOM_JS_VISUALIZATIONS", "false")
 )
 FEATURE_AUTO_PUBLISH_NAMED_QUERIES = parse_boolean(os.environ.get("REDASH_FEATURE_AUTO_PUBLISH_NAMED_QUERIES", "true"))
 FEATURE_EXTENDED_ALERT_OPTIONS = parse_boolean(os.environ.get("REDASH_FEATURE_EXTENDED_ALERT_OPTIONS", "false"))
