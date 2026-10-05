@@ -189,7 +189,13 @@ export default function AiQueryDrawer({
       })
       .catch(error => {
         const errorMessage = getErrorMessage(error);
-        notification.error(errorMessage);
+        const [errorTitle, ...errorDetails] = String(errorMessage).split("\n");
+        notification.error(
+          errorTitle,
+          errorDetails.length > 0 ? (
+            <span className="ai-query-drawer-notification-detail">{errorDetails.join("\n")}</span>
+          ) : null
+        );
         setMessages(current => [...current, { role: AiMessageRole.ASSISTANT, content: errorMessage, isError: true }]);
       })
       .finally(() => setIsGenerating(false));

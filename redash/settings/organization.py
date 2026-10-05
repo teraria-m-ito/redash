@@ -53,6 +53,7 @@ DISABLE_PUBLIC_URLS = parse_boolean(os.environ.get("REDASH_DISABLE_PUBLIC_URLS",
 AI_API_URL = os.environ.get("REDASH_AI_API_URL", "")
 AI_API_KEY = os.environ.get("REDASH_AI_API_KEY", "")
 AI_MODEL = os.environ.get("REDASH_AI_MODEL", "")
+AI_TEMPERATURE = float(os.environ.get("REDASH_AI_TEMPERATURE", "0.1"))
 
 settings = {
     "beacon_consent": None,
@@ -87,4 +88,5 @@ settings = {
     "ai_api_url": AI_API_URL,
     "ai_api_key": AI_API_KEY,
     "ai_model": AI_MODEL,
+    "ai_temperature": AI_TEMPERATURE,
 }

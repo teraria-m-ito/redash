@@ -9,6 +9,12 @@ class AiSettingKey:
     API_URL = "ai_api_url"
     API_KEY = "ai_api_key"
     MODEL = "ai_model"
+    TEMPERATURE = "ai_temperature"
+
+
+DEFAULT_AI_TEMPERATURE = 0.1
+MIN_AI_TEMPERATURE = 0.0
+MAX_AI_TEMPERATURE = 2.0
 
 
 class MessageRole:
@@ -65,7 +71,16 @@ def get_org_ai_settings(org):
     return api_url, api_key, model
 
 
-def call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180):
+def get_org_ai_temperature(org):
+    value = org.get_setting(AiSettingKey.TEMPERATURE, raise_on_missing=False)
+    try:
+        temperature = float(value)
+    except (TypeError, ValueError):
+        return DEFAULT_AI_TEMPERATURE
+    return min(max(temperature, MIN_AI_TEMPERATURE), MAX_AI_TEMPERATURE)
+
+
+def call_ai_chat(api_url, api_key, model, messages, temperature=DEFAULT_AI_TEMPERATURE, timeout=180):
     if not api_url or not model:
         raise AiChatError("AI設定が未設定です。設定の「AI Setting」タブで接続情報を保存してください。", status_code=400)
 
@@ -92,7 +107,20 @@ def call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180
 
     if response.status_code >= 400:
         logger.warning("AI API error status=%s body=%s", response.status_code, response.text[:500])
-        raise AiChatError("AIサービスがエラーを返しました。（HTTP {}）".format(response.status_code))
+        error_message = "AIサービスがエラーを返しました。（HTTP {}）".format(response.status_code)
+        try:
+            error_payload = response.json()
+        except ValueError:
+            error_payload = None
+        if isinstance(error_payload, dict):
+            # OpenAI: {"error": {"message": ...}} / Ollama: {"error": "..."}
+            detail = error_payload.get("error")
+            if isinstance(detail, dict):
+                detail = detail.get("message")
+            detail = detail or error_payload.get("message")
+            if isinstance(detail, str) and detail.strip():
+                error_message = "{}\n{}".format(error_message, detail.strip())
+        raise AiChatError(error_message)
 
     try:
         payload = response.json()

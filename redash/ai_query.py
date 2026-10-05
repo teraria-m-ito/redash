@@ -3,7 +3,7 @@ import logging
 import re
 from string import Template
 
-from redash.ai_client import MessageRole, call_ai_chat
+from redash.ai_client import DEFAULT_AI_TEMPERATURE, MessageRole, call_ai_chat
 from redash.models import AiInstruction, AiSqlPair
 from redash.query_runner import NotSupported
 
@@ -89,11 +89,15 @@ def build_correction_message(error, sql, prompt):
 
 
 def prompt_tokens(prompt):
-    return set(
-        token.lower()
-        for token in re.findall(r"[A-Za-z0-9_\u3040-\u30ff\u4e00-\u9fff]+", prompt or "")
-        if len(token) >= 2
-    )
+    text = prompt or ""
+    tokens = set(token.lower() for token in re.findall(r"[A-Za-z0-9_]+", text) if len(token) >= 2)
+    # 日本語は分かち書きされないため、2文字ずつのN-gramで照合する（ひらがなのみの組は助詞等のノイズなので除外）
+    for run in re.findall(r"[\u3040-\u30ff\u4e00-\u9fff]+", text):
+        for i in range(len(run) - 1):
+            bigram = run[i : i + 2]
+            if not re.fullmatch(r"[\u3040-\u309f]+", bigram):
+                tokens.add(bigram)
+    return tokens
 
 
 def score_text_match(text, tokens):
@@ -295,12 +299,12 @@ def build_generation_user_message(prompt, reasoning_plan=None):
     return "\n".join(parts)
 
 
-def generate_reasoning_plan(api_url, api_key, model, context, prompt):
+def generate_reasoning_plan(api_url, api_key, model, context, prompt, temperature=DEFAULT_AI_TEMPERATURE):
     messages = [
         {"role": MessageRole.SYSTEM, "content": REASONING_SYSTEM_PROMPT},
         {"role": MessageRole.USER, "content": context + "\n\n### 質問 ###\n" + prompt},
     ]
-    return call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=120).strip()
+    return call_ai_chat(api_url, api_key, model, messages, temperature=temperature, timeout=120).strip()
 
 
 def dry_run_query(data_source, query_text, user):
@@ -333,8 +337,9 @@ def generate_with_validation(
     prompt,
     extract_query_payload,
     max_retries=MAX_SQL_CORRECTION_RETRIES,
+    temperature=DEFAULT_AI_TEMPERATURE,
 ):
-    content = call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180)
+    content = call_ai_chat(api_url, api_key, model, messages, temperature=temperature, timeout=180)
     query_text, message = extract_query_payload(content)
 
     if not data_source or not query_text:
@@ -359,7 +364,7 @@ def generate_with_validation(
                 "content": build_correction_message(error, query_text, prompt),
             }
         )
-        content = call_ai_chat(api_url, api_key, model, correction_messages, temperature=0.1, timeout=180)
+        content = call_ai_chat(api_url, api_key, model, correction_messages, temperature=temperature, timeout=180)
         query_text, message = extract_query_payload(content)
 
     return query_text, message, validated
@@ -380,10 +385,11 @@ def generate_query(
     use_reasoning,
     extract_query_payload,
     max_retries=MAX_SQL_CORRECTION_RETRIES,
+    temperature=DEFAULT_AI_TEMPERATURE,
 ):
     reasoning_plan = None
     if use_reasoning:
-        reasoning_plan = generate_reasoning_plan(api_url, api_key, model, context, prompt)
+        reasoning_plan = generate_reasoning_plan(api_url, api_key, model, context, prompt, temperature=temperature)
 
     messages = [{"role": MessageRole.SYSTEM, "content": system_prompt + "\n\n" + context}]
     for item in history[-20:]:
@@ -409,9 +415,10 @@ def generate_query(
             prompt=prompt,
             extract_query_payload=extract_query_payload,
             max_retries=max_retries,
+            temperature=temperature,
         )
     else:
-        content = call_ai_chat(api_url, api_key, model, messages, temperature=0.1, timeout=180)
+        content = call_ai_chat(api_url, api_key, model, messages, temperature=temperature, timeout=180)
         query_text, message = extract_query_payload(content)
         validated = False
 

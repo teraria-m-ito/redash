@@ -136,6 +136,27 @@ class TestAiGenerateQuery(BaseTestCase):
         self.assertEqual(rv.json["message"], "件数です")
         self.assertTrue(rv.json["validated"])
         self.assertEqual(rv.json["reasoning"], "orders を使う")
+        self.assertEqual(mock_generate.call_args[1]["temperature"], 0.1)
+
+    @patch("redash.handlers.ai.generate_query")
+    @patch.object(DataSource, "get_cached_schema")
+    def test_passes_org_temperature(self, mock_schema, mock_generate):
+        self.factory.org.set_setting("ai_api_url", "https://api.openai.com/v1")
+        self.factory.org.set_setting("ai_model", "gpt-4o-mini")
+        self.factory.org.set_setting("ai_temperature", 0.7)
+        db.session.add(self.factory.org)
+        db.session.commit()
+
+        mock_schema.return_value = []
+        mock_generate.return_value = {"query": "SELECT 1", "message": "", "validated": True, "reasoning": None}
+
+        rv = self.make_request(
+            "post",
+            "/api/ai/generate_query",
+            data={"prompt": "件数を出して", "data_source_id": self.factory.data_source.id},
+        )
+        self.assertEqual(rv.status_code, 200)
+        self.assertEqual(mock_generate.call_args[1]["temperature"], 0.7)
 
     @patch("redash.handlers.ai.generate_query")
     @patch.object(DataSource, "get_cached_schema")

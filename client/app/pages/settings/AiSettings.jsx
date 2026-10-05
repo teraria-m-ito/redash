@@ -4,6 +4,7 @@ import PropTypes from "prop-types";
 import Button from "antd/lib/button";
 import Form from "antd/lib/form";
 import Input from "antd/lib/input";
+import InputNumber from "antd/lib/input-number";
 import Skeleton from "antd/lib/skeleton";
 import routeWithUserSession from "@/components/ApplicationArea/routeWithUserSession";
 import wrapSettingsTab from "@/components/SettingsWrapper";
@@ -18,6 +19,14 @@ const AiSettingKey = {
   API_URL: "ai_api_url",
   API_KEY: "ai_api_key",
   MODEL: "ai_model",
+  TEMPERATURE: "ai_temperature",
+};
+
+const AiTemperature = {
+  DEFAULT: 0.1,
+  MIN: 0,
+  MAX: 2,
+  STEP: 0.1,
 };
 
 function ConnectionSettings({ values, onChange, loading }) {
@@ -82,6 +91,24 @@ function ConnectionSettings({ values, onChange, loading }) {
             value={values[AiSettingKey.MODEL]}
             onChange={e => onChange({ [AiSettingKey.MODEL]: e.target.value })}
             data-test="AiModel"
+          />
+        )}
+      </Form.Item>
+      <Form.Item
+        label="Temperature"
+        extra={`応答のばらつきを指定します（${AiTemperature.MIN}〜${AiTemperature.MAX}）。小さいほど毎回同じ結果になりやすく、SQL 生成には低い値が向いています。既定値は ${AiTemperature.DEFAULT} です。`}>
+        {loading ? (
+          <Skeleton.Input style={{ width: 120 }} active />
+        ) : (
+          <InputNumber
+            min={AiTemperature.MIN}
+            max={AiTemperature.MAX}
+            step={AiTemperature.STEP}
+            value={values[AiSettingKey.TEMPERATURE] ?? AiTemperature.DEFAULT}
+            onChange={value =>
+              onChange({ [AiSettingKey.TEMPERATURE]: typeof value === "number" ? value : AiTemperature.DEFAULT })
+            }
+            data-test="AiTemperature"
           />
         )}
       </Form.Item>

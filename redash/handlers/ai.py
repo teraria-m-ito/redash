@@ -3,7 +3,7 @@ import logging
 from flask import request
 from flask_restful import abort
 
-from redash.ai_client import AiChatError, get_org_ai_settings
+from redash.ai_client import AiChatError, get_org_ai_settings, get_org_ai_temperature
 from redash.ai_query import (
     build_generation_context,
     extract_query_payload,
@@ -107,6 +107,7 @@ class AiGenerateQueryResource(BaseResource):
                 use_reasoning=use_reasoning,
                 extract_query_payload=extract_query_payload,
                 max_retries=MAX_VALIDATION_RETRIES,
+                temperature=get_org_ai_temperature(org),
             )
         except AiChatError as error:
             abort(error.status_code, message=error.message)

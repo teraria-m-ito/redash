@@ -2,7 +2,7 @@ import json
 import re
 
 from redash import models, utils
-from redash.ai_client import AiChatError, MessageRole, call_ai_chat, get_org_ai_settings
+from redash.ai_client import AiChatError, MessageRole, call_ai_chat, get_org_ai_settings, get_org_ai_temperature
 from redash.worker import get_job_logger, job
 
 logger = get_job_logger(__name__)
@@ -187,7 +187,7 @@ def evaluate_insight_definition(definition):
     ]
 
     try:
-        content = call_ai_chat(api_url, api_key, model, messages, temperature=0.2, timeout=300)
+        content = call_ai_chat(api_url, api_key, model, messages, temperature=get_org_ai_temperature(org), timeout=300)
     except AiChatError:
         logger.exception("AI insight evaluation failed for definition %d", definition.id)
         return 0
