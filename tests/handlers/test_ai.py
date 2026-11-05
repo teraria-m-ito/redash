@@ -13,6 +13,7 @@ from redash.ai_query import (
 from redash.ai_client import AiApiKind, chat_completions_url, resolve_ai_endpoint
 from redash.handlers.ai import AiGenerateQueryResource
 from redash.models import AiInstruction, AiSqlPair, DataSource, db
+from redash.utils.configuration import ConfigurationContainer
 from tests import BaseTestCase
 
 
@@ -205,6 +206,54 @@ class TestAiGenerateQuery(BaseTestCase):
         context = mock_generate.call_args[1]["context"]
         self.assertIn("月別売上", context)
         self.assertIn("売上定義", context)
+
+    @patch("redash.handlers.ai.generate_query")
+    def test_results_data_source_uses_registered_queries_as_tables(self, mock_generate):
+        self.factory.org.set_setting("ai_api_url", "https://api.openai.com/v1")
+        self.factory.org.set_setting("ai_api_key", "sk-test")
+        self.factory.org.set_setting("ai_model", "gpt-4o-mini")
+        db.session.add(self.factory.org)
+
+        query = self.factory.create_query(name="月別売上", description="売上の集計")
+        result = self.factory.create_query_result(
+            data={
+                "columns": [
+                    {"name": "month", "type": "string"},
+                    {"name": "amount", "type": "float"},
+                ],
+                "rows": [],
+            },
+            data_source=query.data_source,
+        )
+        query.latest_query_data = result
+        archived = self.factory.create_query(name="アーカイブ済み", is_archived=True)
+        db.session.add(query)
+        db.session.commit()
+
+        results_ds = self.factory.create_data_source(
+            type="results",
+            group=self.factory.default_group,
+            options=ConfigurationContainer.from_json("{}"),
+        )
+        mock_generate.return_value = {
+            "query": "SELECT amount FROM query_{}".format(query.id),
+            "message": "ok",
+            "validated": True,
+            "reasoning": "plan",
+        }
+
+        rv = self.make_request(
+            "post",
+            "/api/ai/generate_query",
+            data={"prompt": "月別売上の金額", "data_source_id": results_ds.id},
+        )
+        self.assertEqual(rv.status_code, 200)
+        context = mock_generate.call_args[1]["context"]
+        self.assertIn("query_{}".format(query.id), context)
+        self.assertIn("cached_query_{}".format(query.id), context)
+        self.assertIn("amount", context)
+        self.assertIn("月別売上", context)
+        self.assertNotIn("アーカイブ済み", context)
 
 
 class TestAiSqlPairApi(BaseTestCase):

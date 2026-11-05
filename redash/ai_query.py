@@ -3,8 +3,11 @@ import logging
 import re
 from string import Template
 
+from sqlalchemy import Integer, bindparam, text
+from sqlalchemy.dialects.postgresql import ARRAY
+
 from redash.ai_client import DEFAULT_AI_TEMPERATURE, MessageRole, call_ai_chat
-from redash.models import AiInstruction, AiSqlPair
+from redash.models import AiInstruction, AiSqlPair, Query, db
 from redash.query_runner import NotSupported
 
 logger = logging.getLogger(__name__)
@@ -33,7 +36,15 @@ $prompt
 REASONING_SYSTEM_PROMPT = """あなたはSQLアナリストです。与えられたスキーマ、ビジネスルール、SQL例だけを根拠に、
 質問に答えるためのSQL作成方針を日本語で簡潔に記述してください。
 使用するテーブル、JOIN、フィルタ、集計方法を箇条書きで示してください。
-存在しないテーブルやカラムは使わないでください。"""
+存在しないテーブルやカラムは使わないでください。
+Query Results の案内がある場合は、query_<クエリID> と cached_query_<クエリID> の規則に従ってください。"""
+
+QUERY_RESULTS_GUIDE = """このデータソースは Query Results です。登録済みクエリの結果をテーブルとして参照します。
+- テーブル名は query_<クエリID>（そのクエリを実行して結果を使う）
+- 別名 cached_query_<クエリID> は保存済みの結果を使う。カラムは query_<クエリID> と同じ
+- スキーマに無いクエリIDは使わない
+- 保存済み結果が無いクエリに cached_query_<クエリID> は使わない
+- 構文は SQLite"""
 
 
 def extract_query_payload(content):
@@ -120,6 +131,8 @@ def score_table_relevance(table, tokens):
         return 0
 
     score = score_text_match(table.get("name"), tokens) * 2
+    for alias in table.get("aliases") or []:
+        score += score_text_match(alias, tokens) * 2
     score += score_text_match(table.get("description"), tokens)
 
     for col in table.get("columns") or []:
@@ -146,6 +159,9 @@ def format_column(col):
 def format_table_for_prompt(table):
     name = table.get("name") or ""
     lines = [name]
+    aliases = [alias for alias in (table.get("aliases") or []) if alias]
+    if aliases:
+        lines.append("別名: {}".format(", ".join(aliases)))
     table_description = (table.get("description") or "").strip()
     if table_description:
         lines.append("  説明: {}".format(table_description))
@@ -264,6 +280,110 @@ def format_instructions_for_prompt(instructions):
     return "\n".join(lines).strip()
 
 
+def parse_result_columns(columns_json):
+    if not columns_json:
+        return []
+    try:
+        columns = json.loads(columns_json) if isinstance(columns_json, str) else columns_json
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(columns, list):
+        return []
+
+    parsed = []
+    for column in columns:
+        if isinstance(column, dict) and column.get("name"):
+            parsed.append({"name": column["name"], "type": column.get("type") or ""})
+        elif isinstance(column, str) and column:
+            parsed.append({"name": column, "type": ""})
+    return parsed
+
+
+def query_results_schema_table(query_id, name, description, columns, has_cache):
+    table_name = "query_{}".format(query_id)
+    cached_name = "cached_query_{}".format(query_id)
+    parts = []
+    title = (name or "").strip()
+    if title:
+        parts.append(title)
+    detail = (description or "").strip()
+    if detail:
+        parts.append(detail)
+    parts.append("{} はクエリを実行して結果を使う。".format(table_name))
+    if has_cache:
+        parts.append("{} は保存済みの結果を使う。カラムは同じ。".format(cached_name))
+    else:
+        parts.append("保存済み結果が無いため {} は使えない。".format(cached_name))
+
+    table = {
+        "name": table_name,
+        "description": " ".join(parts),
+        "columns": columns or [],
+    }
+    if has_cache:
+        table["aliases"] = [cached_name]
+    return table
+
+
+def load_result_columns(result_ids):
+    if not result_ids:
+        return {}
+
+    statement = text(
+        "SELECT id, CAST(json_extract_path(CAST(data AS json), 'columns') AS text) AS columns "
+        "FROM query_results WHERE id = ANY(:ids)"
+    ).bindparams(bindparam("ids", type_=ARRAY(Integer)))
+    try:
+        rows = db.session.execute(statement, {"ids": list(result_ids)})
+    except Exception:
+        logger.exception("Failed to load query result columns")
+        db.session.rollback()
+        return {}
+
+    columns_by_id = {}
+    for result_id, columns_json in rows:
+        columns_by_id[result_id] = parse_result_columns(columns_json)
+    return columns_by_id
+
+
+def build_query_results_schema(user, exclude_query_id=None):
+    try:
+        exclude_query_id = int(exclude_query_id) if exclude_query_id else None
+    except (TypeError, ValueError):
+        exclude_query_id = None
+
+    try:
+        queries = (
+            Query.all_queries(user.group_ids, user.id)
+            .filter(Query.org_id == user.org_id)
+            .order_by(Query.id)
+            .all()
+        )
+    except Exception:
+        logger.exception("Failed to load queries for query results schema")
+        return []
+
+    if exclude_query_id is not None:
+        queries = [query for query in queries if query.id != exclude_query_id]
+
+    result_ids = [query.latest_query_data_id for query in queries if query.latest_query_data_id]
+    columns_by_id = load_result_columns(result_ids)
+
+    schema = []
+    for query in queries:
+        columns = columns_by_id.get(query.latest_query_data_id, [])
+        schema.append(
+            query_results_schema_table(
+                query.id,
+                query.name,
+                query.description,
+                columns,
+                query.latest_query_data_id is not None,
+            )
+        )
+    return schema
+
+
 def build_generation_context(
     *,
     data_source_name,
@@ -273,6 +393,7 @@ def build_generation_context(
     schema_text,
     sql_pairs_text,
     instructions_text,
+    schema_guide="",
 ):
     parts = [
         "データソース: {} ({})".format(data_source_name or "(未選択)", data_source_type or "(不明)"),
@@ -281,9 +402,15 @@ def build_generation_context(
         "現在のクエリ:",
         current_query or "(空)",
         "",
-        "テーブル定義:",
-        schema_text,
     ]
+    if schema_guide:
+        parts.extend([schema_guide, ""])
+    parts.extend(
+        [
+            "テーブル定義:",
+            schema_text,
+        ]
+    )
     if instructions_text:
         parts.extend(["", instructions_text])
     if sql_pairs_text:

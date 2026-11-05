@@ -78,6 +78,8 @@ export default function AiQueryDrawer({
   visible,
   currentQuery,
   dataSourceId,
+  dataSourceType,
+  queryId,
   schema,
   syntax,
   onClose,
@@ -164,6 +166,7 @@ export default function AiQueryDrawer({
       messages: history,
       current_query: currentQuery || "",
       data_source_id: dataSourceId,
+      query_id: queryId,
       schema,
       syntax: syntax || "sql",
       validate: Boolean(dataSourceId),
@@ -199,7 +202,7 @@ export default function AiQueryDrawer({
         setMessages(current => [...current, { role: AiMessageRole.ASSISTANT, content: errorMessage, isError: true }]);
       })
       .finally(() => setIsGenerating(false));
-  }, [prompt, isGenerating, messages, currentQuery, dataSourceId, schema, syntax]);
+  }, [prompt, isGenerating, messages, currentQuery, dataSourceId, queryId, schema, syntax]);
 
   const saveSqlPair = useCallback(
     (question, query, messageKey) => {
@@ -297,8 +300,15 @@ export default function AiQueryDrawer({
           {messages.length === 0 && (
             <div className="ai-query-drawer-empty">
               作りたいクエリを日本語で入力してください。関連テーブルとビジネスルールを参照して生成します。
-              {schema.length > 0 && <div className="m-t-10">読み込み済みテーブル: {schema.length} 件</div>}
-              {schema.length === 0 && (
+              {dataSourceType === "results" && (
+                <div className="m-t-10">
+                  登録済みクエリを query_&lt;クエリID&gt; または cached_query_&lt;クエリID&gt; として参照できます。
+                </div>
+              )}
+              {dataSourceType !== "results" && schema.length > 0 && (
+                <div className="m-t-10">読み込み済みテーブル: {schema.length} 件</div>
+              )}
+              {dataSourceType !== "results" && schema.length === 0 && (
                 <div className="m-t-10">スキーマ未取得です。左ペインのテーブル一覧が表示されてから送信してください。</div>
               )}
               {dataSourceId && sqlPairs.length > 0 && (
@@ -450,6 +460,8 @@ AiQueryDrawer.propTypes = {
   visible: PropTypes.bool,
   currentQuery: PropTypes.string,
   dataSourceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  dataSourceType: PropTypes.string,
+  queryId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   schema: PropTypes.array,
   syntax: PropTypes.string,
   onClose: PropTypes.func,
@@ -460,6 +472,8 @@ AiQueryDrawer.defaultProps = {
   visible: false,
   currentQuery: "",
   dataSourceId: null,
+  dataSourceType: null,
+  queryId: null,
   schema: [],
   syntax: "sql",
   onClose: () => {},

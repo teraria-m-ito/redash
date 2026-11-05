@@ -8,6 +8,8 @@ from redash.ai_query import (
     generate_query,
     generate_with_validation,
     prompt_tokens,
+    query_results_schema_table,
+    schema_to_prompt_text,
 )
 
 
@@ -22,6 +24,27 @@ class TestPromptTokens(TestCase):
 
     def test_ascii_words_are_lowercased(self):
         self.assertEqual(prompt_tokens("Orders の amount"), {"orders", "amount"})
+
+
+class TestQueryResultsSchemaTable(TestCase):
+    def test_includes_cached_alias_when_result_exists(self):
+        table = query_results_schema_table(
+            12,
+            "月別売上",
+            "売上の集計",
+            [{"name": "amount", "type": "float"}],
+            True,
+        )
+        text = schema_to_prompt_text([table], "月別売上")
+        self.assertIn("query_12", text)
+        self.assertIn("cached_query_12", text)
+        self.assertIn("amount", text)
+        self.assertIn("月別売上", text)
+
+    def test_omits_cached_alias_without_saved_result(self):
+        table = query_results_schema_table(7, "未実行", "", [], False)
+        self.assertNotIn("aliases", table)
+        self.assertIn("使えない", table["description"])
 
 
 class TestCallAiChatError(TestCase):

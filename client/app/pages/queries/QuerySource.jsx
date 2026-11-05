@@ -440,6 +440,8 @@ function QuerySource(props) {
           visible={isAiQueryOpen}
           currentQuery={query.query}
           dataSourceId={dataSource ? dataSource.id : query.data_source_id || null}
+          dataSourceType={dataSource ? dataSource.type : null}
+          queryId={query.id}
           schema={schema}
           syntax={querySyntax}
           onClose={() => setIsAiQueryOpen(false)}

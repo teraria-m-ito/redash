@@ -5,7 +5,9 @@ from flask_restful import abort
 
 from redash.ai_client import AiChatError, get_org_ai_settings, get_org_ai_temperature
 from redash.ai_query import (
+    QUERY_RESULTS_GUIDE,
     build_generation_context,
+    build_query_results_schema,
     extract_query_payload,
     generate_query,
     format_instructions_for_prompt,
@@ -28,6 +30,7 @@ SYSTEM_PROMPT = """あなたは指定データソースのスキーマだけを�
 - 与えられたスキーマに存在するテーブル名とカラム名だけを使う
 - スキーマに無い名前は、一般的な名前（users, orders, sales など）でも絶対に作らない
 - テーブル名はスキーマの表記をそのまま使う（schema.table 形式ならその通り）
+- スキーマに別名がある場合、その名前もテーブル名として使える
 - ビジネスルールがある場合は必ず厳守する
 - SQL例がある場合は、書き方やテーブルの使い方の参考にする（ただし質問に合わせて適宜変更する）
 - 推論プランがある場合は、その方針に沿ってSQLを書く
@@ -59,6 +62,7 @@ class AiGenerateQueryResource(BaseResource):
         data_source_name = ""
         data_source_type = ""
         schema = fallback_schema
+        schema_guide = ""
         data_source = None
 
         data_source_id = req.get("data_source_id")
@@ -67,11 +71,16 @@ class AiGenerateQueryResource(BaseResource):
             require_access(data_source, self.current_user, view_only)
             data_source_name = data_source.name
             data_source_type = data_source.type
-            schema = load_data_source_schema(data_source, fallback_schema)
-            try:
-                syntax = getattr(data_source.query_runner, "syntax", None) or syntax
-            except Exception:
-                pass
+            if data_source.type == "results":
+                schema = build_query_results_schema(self.current_user, req.get("query_id"))
+                schema_guide = QUERY_RESULTS_GUIDE
+                syntax = "sql"
+            else:
+                schema = load_data_source_schema(data_source, fallback_schema)
+                try:
+                    syntax = getattr(data_source.query_runner, "syntax", None) or syntax
+                except Exception:
+                    pass
 
         schema_text = schema_to_prompt_text(schema, prompt)
         sql_pairs_text = ""
@@ -90,6 +99,7 @@ class AiGenerateQueryResource(BaseResource):
             schema_text=schema_text,
             sql_pairs_text=sql_pairs_text,
             instructions_text=instructions_text,
+            schema_guide=schema_guide,
         )
 
         try:
